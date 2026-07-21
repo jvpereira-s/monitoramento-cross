@@ -6,7 +6,7 @@ contador e gera relatório de impressões por período (PDF, Excel, CSV), com lo
 administrador (Cross) e de cliente (acesso somente-leitura ao próprio contrato).
 
 Stack: Vite + React, Tailwind CSS v4, Supabase (Postgres + Auth + Edge Functions),
-recharts, papaparse, xlsx. Deploy: Vercel.
+recharts, papaparse, xlsx. Deploy: build estático publicado no HostGator.
 
 Este guia assume que você **não programou o projeto** — cada passo diz exatamente onde
 clicar/rodar.
@@ -92,20 +92,28 @@ colado continua em inglês antes de implantar.
 Não é preciso configurar nenhum secret: `SUPABASE_URL`, `SUPABASE_ANON_KEY` e
 `SUPABASE_SERVICE_ROLE_KEY` já ficam disponíveis automaticamente em toda Edge Function.
 
-## 5. Deploy no Vercel
+## 5. Deploy no HostGator
 
-1. Suba este repositório para o GitHub (numa conta/organização da Cross, sem qualquer
-   referência a outras empresas no nome).
-2. No Vercel: **Add New → Project** → importe o repositório. Framework detectado
-   automaticamente (Vite).
-3. Em **Environment Variables**, adicione:
-   - `VITE_SUPABASE_URL`
-   - `VITE_SUPABASE_ANON_KEY`
+O app é um SPA estático (sem servidor Node) — hospedagem compartilhada comum resolve.
+`vite.config.js` usa `base: './'` de propósito: o build funciona tanto publicado na
+raiz do domínio quanto numa subpasta, sem precisar reconfigurar nada.
 
-   (são públicas por natureza — ficam expostas no bundle do navegador de qualquer app
-   Supabase; o que protege os dados é o RLS do banco, não o segredo dessas variáveis.)
-4. Deploy. Build command e output directory são os padrões do Vite (`vite build` /
-   `dist`), não precisa mexer.
+1. Gere o build com o `.env` de produção já preenchido (seção 1 deste guia):
+   ```bash
+   npm run build
+   ```
+   Isso cria `dist/` com tudo que precisa ser publicado. As variáveis
+   `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` ficam embutidas no JS gerado — são
+   públicas por natureza (o que protege os dados é o RLS do banco, não o segredo dessas
+   variáveis).
+2. No cPanel do HostGator (File Manager ou FTP), envie o **conteúdo** de `dist/` (não a
+   pasta em si) para `public_html/` (ou a subpasta escolhida).
+   **Atenção**: `dist/.htaccess` é um arquivo oculto (gzip + cache dos assets) — ative
+   "Show Hidden Files" no File Manager/FTP antes de enviar, senão ele fica pra trás.
+3. Confirme que o domínio tem **SSL/HTTPS ativo** (AutoSSL grátis do cPanel) antes de
+   liberar acesso a clientes — o login manda usuário/senha pela rede.
+4. Cada nova alteração de código exige repetir os passos 1–2 (não há deploy automático
+   por git nesse tipo de hospedagem). Detalhado em `MANUTENCAO.md`.
 
 ## Segurança — o que nunca fazer neste projeto
 

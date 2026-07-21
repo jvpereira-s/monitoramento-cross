@@ -21,3 +21,66 @@
 - **Precision Reading:** Use `grep` or `sed` to locate code before reading full files.
 - **Edit Strategy:** Prefer targeted `sed` or line-based edits over rewriting entire files.
 - **Maintenance:** Every 15 turns, suggest a new session with a summary.
+
+## 5. Contexto do Projeto — Monitoramento Cross
+
+**O que é**: ferramenta de monitoramento de impressoras da Cross Soluções. Importa
+relatórios do PrintWayy (contadores de página e status de comunicação por impressora) e
+gera relatório de impressões por período (total = contador final − contador inicial).
+Dois papéis de acesso: **admin** (interno Cross, vê e importa dados de todos os
+clientes) e **cliente** (externo, leitura somente do próprio contrato).
+
+**Regras não-negociáveis** — nunca violar, mesmo que pareça conveniente para um fix rápido:
+- **Zero menção a "CIBOX"** em qualquer lugar — código, texto de UI, commit, nome de
+  arquivo, comentário. (CIBOX é o concorrente cujo relatório serviu de referência de
+  formato; não pode aparecer no produto da Cross de forma nenhuma.)
+- **Isolamento entre clientes é feito por RLS no Postgres** (`is_admin()` e
+  `cliente_do_usuario()` em `supabase/migrations/0001_init.sql`), nunca por filtro no
+  front-end. Um `if (role === 'cliente')` escondendo dados na UI não é isolamento — é
+  decoração. Se um dado não pode vazar, a policy do banco é que garante isso.
+- **A `service_role key` nunca aparece em código de front-end** nem em arquivo
+  commitado. Ela só existe dentro da Edge Function `manage-users` (injetada
+  automaticamente pelo Supabase) ou em comandos pontuais de terminal para bootstrap
+  manual (ver `README.md`).
+- **Sem `localStorage`/`sessionStorage` para dado de negócio** (impressoras, leituras,
+  relatórios). Tudo vive no Supabase — sessão de auth é a única coisa que o SDK do
+  Supabase guarda no browser, e isso é gerenciado pela própria lib, não por nós.
+- **Todo texto de interface em português do Brasil.**
+
+**Estrutura de pastas**:
+- `src/lib/` — lógica de negócio pura, sem JSX, testável isoladamente:
+  - `mapping.js` — heurística de reconhecimento de colunas da planilha importada
+    (`guessMapping`) e detecção automática da linha de cabeçalho real
+    (`findHeaderRowIndex`/`rowsFromSheet`), porque o export do PrintWayy traz
+    logo/título/dados do cliente antes da linha de colunas.
+  - `importPrinters.js` — transforma linhas da planilha já mapeadas em payload de
+    `printers`/`readings` prontos para gravar.
+  - `db.js` — leitura/escrita em `printers`/`readings` via Supabase (RLS decide o que
+    cada usuário vê; não há filtro de cliente aqui de propósito).
+  - `printerStats.js` — deriva status (online/offline/sem-dados/sem-monitoramento),
+    KPIs e listas agregadas a partir de `printers` + `readings`.
+  - `report.js` — matemática do relatório por período (`computeReportRows`), validada
+    contra relatório real do PrintWayy (52.494 páginas, período 28/04–27/05/2026).
+  - `reportExport.js` — exportação CSV/Excel/PDF do relatório.
+  - `auth.js` / `users.js` — login por usuário (e-mail sintético `user@cross.local`) e
+    operações privilegiadas de conta (via Edge Function `manage-users`).
+  - `theme.js` — paleta de cores da marca.
+- `src/pages/` — telas completas: `Login`, `Painel` (dashboard + import), `Relatorio`,
+  `Usuarios` (gestão de contas, só admin).
+- `src/components/` — peças reutilizáveis de UI (`AppShell`, `PrinterDetailModal`,
+  gráficos, etc.), sem lógica de negócio própria — chamam as funções de `src/lib/`.
+- `supabase/migrations/` — schema do banco, aplicado manualmente via SQL Editor, em
+  ordem numérica. Mudança de schema = nova migration numerada, nunca editar uma já
+  aplicada em produção.
+- `supabase/functions/manage-users/` — Edge Function (Deno) para criar/excluir/trocar
+  senha de usuário; é a única peça do sistema com acesso à `service_role key`.
+
+**Fluxo de dados**: planilha do PrintWayy → tela de mapeamento de colunas (`Painel`) →
+`buildImportPayload` → `saveImport` grava em `printers` (upsert por nº de série) e
+`readings` (insert) → `computePrinterStats`/`computeReportRows` derivam tudo que a UI
+mostra a partir dessas duas tabelas. Nenhum dado de negócio fica fora do Supabase.
+
+**Stack**: Vite + React (JS puro, sem TypeScript no front), Tailwind CSS v4, Supabase
+(Postgres + Auth + Edge Functions), recharts, papaparse, xlsx. Deploy: build estático
+(`npm run build` → `dist/`) publicado no HostGator via upload manual (cPanel/FTP) — ver
+`README.md` seção de deploy e `MANUTENCAO.md`.
