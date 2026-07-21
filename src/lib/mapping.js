@@ -62,6 +62,42 @@ export function guessMapping(headers) {
   return guess;
 }
 
+// Big O: O(linhas escaneadas × campos × termos) — escaneia até as primeiras `maxScan`
+// linhas do arquivo procurando qual delas é a linha de cabeçalho de verdade. Necessário
+// porque o relatório do PrintWayy não traz os cabeçalhos na primeira linha: antes deles
+// vêm o logo, o título do relatório e os dados do cliente/contrato.
+export function findHeaderRowIndex(rows, maxScan = 15) {
+  let bestIndex = 0;
+  let bestScore = 0;
+  const scanLimit = Math.min(rows.length, maxScan);
+  for (let i = 0; i < scanLimit; i++) {
+    const candidate = (rows[i] || []).map((c) => String(c ?? ''));
+    if (candidate.every((c) => !c.trim())) continue;
+    const matches = Object.keys(guessMapping(candidate)).length;
+    if (matches > bestScore) { bestScore = matches; bestIndex = i; }
+  }
+  // Menos de 2 campos batendo não é confiável o suficiente pra chamar de cabeçalho —
+  // nesse caso assume linha 1 mesmo (comportamento antigo, planilha "normal").
+  return bestScore >= 2 ? bestIndex : 0;
+}
+
+// Converte uma planilha crua (array de arrays, sem assumir onde fica o cabeçalho) em
+// {headers, rows} prontos para a tela de mapeamento de colunas.
+export function rowsFromSheet(rawArray) {
+  if (!rawArray.length) return { headers: [], rows: [] };
+  const headerIndex = findHeaderRowIndex(rawArray);
+  const headerLine = rawArray[headerIndex].map((h) => String(h ?? '').trim());
+  const rows = rawArray
+    .slice(headerIndex + 1)
+    .filter((r) => (r || []).some((c) => String(c ?? '').trim() !== ''))
+    .map((r) => {
+      const obj = {};
+      headerLine.forEach((h, i) => { if (h) obj[h] = r[i]; });
+      return obj;
+    });
+  return { headers: headerLine.filter(Boolean), rows };
+}
+
 export function normalizeDate(value) {
   if (!value) return null;
   if (value instanceof Date && !isNaN(value)) return value.toISOString().slice(0, 10);

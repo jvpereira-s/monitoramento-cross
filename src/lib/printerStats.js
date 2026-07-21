@@ -25,6 +25,11 @@ export function computePrinterStats(printers, readings, commThreshold) {
           comm = daysSince > commThreshold ? 'offline' : 'online';
         }
       }
+      // Contador zerado é sinal de que o PrintWayy não está recebendo leitura de página
+      // real dessa impressora — mesmo "comunicando" (pingando), não está monitorando.
+      if (lastC && lastC.contador_pb === 0) {
+        comm = 'sem-monitoramento';
+      }
 
       return { ...printer, lastReading: last, contador: lastC ? lastC.contador_pb : null, delta, daysSince, comm };
     })
@@ -35,9 +40,10 @@ export function computeKpis(stats) {
   const total = stats.length;
   const online = stats.filter((p) => p.comm === 'online').length;
   const offline = stats.filter((p) => p.comm === 'offline').length;
+  const semMonitoramento = stats.filter((p) => p.comm === 'sem-monitoramento').length;
   const semDados = stats.filter((p) => p.comm === 'sem-dados').length;
   const totalPaginasPeriodo = stats.reduce((sum, p) => sum + (p.delta && p.delta > 0 ? p.delta : 0), 0);
-  return { total, online, offline, semDados, totalPaginasPeriodo };
+  return { total, online, offline, semMonitoramento, semDados, totalPaginasPeriodo };
 }
 
 export function computeLastSync(stats, readings) {
@@ -55,6 +61,10 @@ export function computeOfflineList(stats) {
   return stats.filter((p) => p.comm === 'offline').sort((a, b) => (b.daysSince || 0) - (a.daysSince || 0));
 }
 
+export function computeSemMonitoramentoList(stats) {
+  return stats.filter((p) => p.comm === 'sem-monitoramento').sort((a, b) => (b.daysSince || 0) - (a.daysSince || 0));
+}
+
 export function computeConexaoData(stats) {
   const counts = {};
   stats.forEach((p) => {
@@ -70,4 +80,19 @@ export function computeTopConsumo(stats) {
     .sort((a, b) => b.delta - a.delta)
     .slice(0, 8)
     .map((p) => ({ name: p.id.length > 14 ? p.id.slice(0, 13) + '…' : p.id, paginas: p.delta }));
+}
+
+// Mesma ideia do computeTopConsumo, mas agrupado por cliente em vez de por impressora —
+// usado na visão "todos os clientes", onde listar equipamento por S/N não faz sentido.
+export function computeTopClientes(stats) {
+  const totals = {};
+  stats.forEach((p) => {
+    if (p.delta && p.delta > 0) {
+      totals[p.cliente] = (totals[p.cliente] || 0) + p.delta;
+    }
+  });
+  return Object.entries(totals)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([name, paginas]) => ({ name, paginas }));
 }

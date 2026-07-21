@@ -1,7 +1,10 @@
-import { TEAL, DANGER } from '../lib/theme';
+import { TEAL, DANGER, ORANGE } from '../lib/theme';
 
 export default function StatusDot({ status }) {
-  const color = status === 'online' ? TEAL : status === 'offline' ? DANGER : '#9CA3AF';
+  const color = status === 'online' ? TEAL
+    : status === 'offline' ? DANGER
+    : status === 'sem-monitoramento' ? ORANGE
+    : '#9CA3AF';
   return (
     <span style={{ position: 'relative', display: 'inline-flex', width: 10, height: 10, marginRight: 8 }}>
       {status === 'online' && (

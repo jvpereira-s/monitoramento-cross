@@ -54,7 +54,9 @@ export function exportReportPDF(reportRows, reportTotals, client, reportStart, r
       <td style="text-align:right;font-weight:600;font-family:monospace">${r.totalPB !== null ? r.totalPB.toLocaleString('pt-BR') : '—'}</td>
     </tr>`).join('');
 
-  const logoUrl = new URL(crossLogo, window.location.origin).href;
+  // Resolve contra a URL atual (não window.location.origin) — com base relativa no build,
+  // isso funciona tanto na raiz do domínio quanto numa subpasta (ex: dominio.com/monitoramento/).
+  const logoUrl = new URL(crossLogo, window.location.href).href;
 
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Relatório de Impressões — ${client}</title>
     <style>

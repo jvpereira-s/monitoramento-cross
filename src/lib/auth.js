@@ -25,10 +25,13 @@ export async function signOut() {
   return { success: true };
 }
 
-// Busca o perfil (role + cliente_associado) do usuário autenticado. RLS de `profiles`
-// só libera a própria linha (id = auth.uid()) para não-admins.
+// Busca o perfil (role + cliente_associado) do usuário autenticado. Filtra por id
+// explicitamente — não dá pra confiar só no RLS aqui, porque a policy de admin libera
+// TODAS as linhas de profiles (não só a própria), e ".single()" quebra se vier mais de uma.
 export async function fetchOwnProfile() {
-  const { data, error } = await supabase.from('profiles').select('*').single();
+  const { data: { user }, error: userErr } = await supabase.auth.getUser();
+  if (userErr || !user) return { success: false, error: 'Sessão não encontrada.' };
+  const { data, error } = await supabase.from('profiles').select('*').eq('id', user.id).single();
   if (error) return { success: false, error: error.message };
   return { success: true, profile: data };
 }

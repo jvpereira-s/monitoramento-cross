@@ -8,11 +8,13 @@ import AppShell from '../components/AppShell';
 import MiniDonut from '../components/MiniDonut';
 import StatusDot from '../components/StatusDot';
 import BarChartTopConsumo from '../components/BarChartTopConsumo';
+import PrinterDetailModal from '../components/PrinterDetailModal';
 import { fetchPrinters, fetchReadings, saveImport } from '../lib/db';
-import { guessMapping, FIELDS } from '../lib/mapping';
+import { guessMapping, rowsFromSheet, FIELDS } from '../lib/mapping';
 import { buildImportPayload } from '../lib/importPrinters';
 import {
-  computePrinterStats, computeKpis, computeLastSync, computeOfflineList, computeConexaoData, computeTopConsumo,
+  computePrinterStats, computeKpis, computeLastSync, computeOfflineList, computeSemMonitoramentoList,
+  computeConexaoData, computeTopConsumo, computeTopClientes,
 } from '../lib/printerStats';
 import { ORANGE, ORANGE_DEEP, TEAL, INK, MUTED, DANGER, LINE } from '../lib/theme';
 
@@ -36,6 +38,7 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
   const [showSettings, setShowSettings] = useState(false);
   const [sortBy, setSortBy] = useState(null);
   const [sortDir, setSortDir] = useState('asc');
+  const [selectedPrinter, setSelectedPrinter] = useState(null);
 
   async function loadData() {
     setLoading(true);
@@ -50,12 +53,6 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
   useEffect(() => { loadData(); }, []);
 
   const stats = useMemo(() => computePrinterStats(printers, readings, commThreshold), [printers, readings, commThreshold]);
-  const kpis = useMemo(() => computeKpis(stats), [stats]);
-  const hasCounters = useMemo(() => stats.some((p) => p.contador !== null), [stats]);
-  const lastSync = useMemo(() => computeLastSync(stats, readings), [stats, readings]);
-  const offlineList = useMemo(() => computeOfflineList(stats), [stats]);
-  const conexaoData = useMemo(() => computeConexaoData(stats), [stats]);
-  const topConsumo = useMemo(() => computeTopConsumo(stats), [stats]);
   const hasData = printers.length > 0;
 
   const clients = useMemo(() => {
@@ -63,21 +60,38 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
     return ['todos', ...Array.from(set)];
   }, [stats]);
 
+  // Filtro de cliente (admin) vale pra tudo — KPIs, gráficos e tabela — não só a tabela.
+  // Em "todos" (padrão), volta a somar o parque inteiro.
+  const scopedStats = useMemo(() => (
+    isAdmin && clientFilter !== 'todos' ? stats.filter((p) => p.cliente === clientFilter) : stats
+  ), [stats, isAdmin, clientFilter]);
+
+  const kpis = useMemo(() => computeKpis(scopedStats), [scopedStats]);
+  const hasCounters = useMemo(() => scopedStats.some((p) => p.contador !== null), [scopedStats]);
+  const lastSync = useMemo(() => computeLastSync(stats, readings), [stats, readings]);
+  const offlineList = useMemo(() => computeOfflineList(scopedStats), [scopedStats]);
+  const semMonitoramentoList = useMemo(() => computeSemMonitoramentoList(scopedStats), [scopedStats]);
+  const conexaoData = useMemo(() => computeConexaoData(scopedStats), [scopedStats]);
+  const topConsumo = useMemo(() => computeTopConsumo(scopedStats), [scopedStats]);
+  // "Todos os clientes" mistura equipamentos de contratos diferentes — rankear por
+  // impressora aí não diz muito. Agrupa por cliente em vez disso.
+  const showTopClientes = isAdmin && clientFilter === 'todos';
+  const topClientes = useMemo(() => computeTopClientes(stats), [stats]);
+
   const commPieData = [
     { name: 'Comunicando', value: kpis.online, color: TEAL },
     { name: 'Sem comunicação', value: kpis.offline, color: DANGER },
+    { name: 'Sem monitoramento de páginas', value: kpis.semMonitoramento, color: ORANGE },
     { name: 'Sem dados ainda', value: kpis.semDados, color: '#9CA3AF' },
   ].filter((d) => d.value > 0);
 
-  const filtered = stats.filter((p) => {
+  const filtered = scopedStats.filter((p) => {
     const s = search.toLowerCase();
-    const matchesSearch = !s
+    return !s
       || p.id.toLowerCase().includes(s)
       || (p.ip || '').toLowerCase().includes(s)
       || (p.modelo || '').toLowerCase().includes(s)
       || (p.local || '').toLowerCase().includes(s);
-    const matchesClient = !isAdmin || clientFilter === 'todos' || p.cliente === clientFilter;
-    return matchesSearch && matchesClient;
   });
 
   function toggleSort(key) {
@@ -133,14 +147,17 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
     setError(null);
     const isCsv = file.name.toLowerCase().endsWith('.csv');
     if (isCsv) {
+      // header:false — o relatório do PrintWayy traz logo/título/dados do cliente antes
+      // da linha real de colunas, então lemos tudo como array bruto e deixamos
+      // rowsFromSheet() achar onde o cabeçalho de verdade está.
       Papa.parse(file, {
-        header: true,
+        header: false,
         skipEmptyLines: true,
         complete: (results) => {
-          const headers = results.meta.fields || [];
+          const { headers, rows } = rowsFromSheet(results.data);
           if (!headers.length) { setError('Não encontrei cabeçalhos no CSV.'); return; }
           setRawHeaders(headers);
-          setRawRows(results.data);
+          setRawRows(rows);
           setMapping(guessMapping(headers));
           setView('mapping');
         },
@@ -152,11 +169,11 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
         try {
           const wb = XLSX.read(evt.target.result, { type: 'binary', cellDates: true });
           const sheet = wb.Sheets[wb.SheetNames[0]];
-          const json = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-          if (!json.length) { setError('A planilha parece estar vazia.'); return; }
-          const headers = Object.keys(json[0]);
+          const rawArray = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+          const { headers, rows } = rowsFromSheet(rawArray);
+          if (!headers.length) { setError('A planilha parece estar vazia.'); return; }
           setRawHeaders(headers);
-          setRawRows(json);
+          setRawRows(rows);
           setMapping(guessMapping(headers));
           setView('mapping');
         } catch {
@@ -207,6 +224,7 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
   ) : null;
 
   return (
+    <>
     <AppShell profile={profile} isAdmin={isAdmin} view={view} onViewChange={onNavigate} onLogout={onLogout}
       lastSync={lastSync} title={title} topbarExtra={topbarExtra}>
 
@@ -273,6 +291,9 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
                   </label>
                   <input type="date" className="cx-input" style={{ width: 200 }} value={manualDateIni}
                     onChange={(e) => setManualDateIni(e.target.value)} />
+                  <div style={{ fontSize: 11.5, color: MUTED, marginTop: 6, maxWidth: 320 }}>
+                    Use a data que aparece no título do relatório do PrintWayy (ex: "28/04/2026 a 27/05/2026") — não é a data de hoje nem a data da importação.
+                  </div>
                 </div>
               )}
               <div>
@@ -282,7 +303,9 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
                 <input type="date" className="cx-input" style={{ width: 200 }} value={manualDate}
                   onChange={(e) => setManualDate(e.target.value)} />
                 <div style={{ fontSize: 11.5, color: MUTED, marginTop: 6, maxWidth: 320 }}>
-                  Vazio = usa a data de hoje.
+                  {(mapping.contadorPBIni || mapping.contadorColorIni)
+                    ? 'A outra data do título do relatório. Vazio = usa a data de hoje (normalmente errado aqui).'
+                    : 'Vazio = usa a data de hoje.'}
                 </div>
               </div>
             </div>
@@ -313,6 +336,9 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: MUTED }}>Comunicação</div>
                 <div className="mono" style={{ fontSize: 22, fontWeight: 600, color: INK, marginTop: 4 }}>{kpis.online}/{kpis.total}</div>
+                {kpis.semMonitoramento > 0 && (
+                  <div style={{ fontSize: 10.5, color: ORANGE, marginTop: 2 }}>{kpis.semMonitoramento} sem monitoramento de páginas</div>
+                )}
               </div>
               <MiniDonut data={commPieData} />
             </div>
@@ -339,7 +365,12 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
 
           <div style={{ marginBottom: 20 }}>
             <div style={{ background: '#fff', border: `1px solid ${LINE}`, borderRadius: 10, padding: 16 }}>
-              {hasCounters ? (
+              {hasCounters && showTopClientes ? (
+                <>
+                  <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 8, color: MUTED }}>Clientes que mais imprimem no período (páginas)</div>
+                  <BarChartTopConsumo data={topClientes} />
+                </>
+              ) : hasCounters ? (
                 <>
                   <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 8, color: MUTED }}>Maior consumo no período (páginas)</div>
                   <BarChartTopConsumo data={topConsumo} />
@@ -376,6 +407,35 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
               )}
             </div>
           </div>
+
+          {semMonitoramentoList.length > 0 && (
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ background: '#fff', border: `1px solid ${LINE}`, borderRadius: 10, padding: 16 }}>
+                <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 4, color: MUTED }}>Impressoras sem monitoramento de páginas</div>
+                <div style={{ fontSize: 11.5, color: '#9CA3AF', marginBottom: 10 }}>
+                  Contador zerado — o PrintWayy não está recebendo leitura de páginas dessas impressoras, mesmo comunicando.
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {semMonitoramentoList.map((p) => {
+                    const maxDays = semMonitoramentoList[0].daysSince || 1;
+                    const pct = Math.max(6, Math.round(((p.daysSince || 0) / maxDays) * 100));
+                    return (
+                      <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+                        <div style={{ width: 220, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={p.local}>
+                          {p.local || p.id}
+                        </div>
+                        <div style={{ flex: 1, background: '#FDECD9', borderRadius: 4, height: 16, position: 'relative' }}>
+                          <div style={{ width: pct + '%', background: ORANGE, height: '100%', borderRadius: 4, opacity: 0.85 }} />
+                        </div>
+                        <div className="mono" style={{ width: 62, textAlign: 'right', color: ORANGE }}>{p.daysSince}d</div>
+                        <div style={{ width: 44, fontSize: 10.5, color: MUTED }}>{p.conexao}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
 
           <div style={{ display: 'flex', gap: 10, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
             <div style={{ position: 'relative', flex: '1 1 220px' }}>
@@ -415,7 +475,7 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
               </thead>
               <tbody>
                 {sorted.map((p) => (
-                  <tr key={p.id}>
+                  <tr key={p.id} onClick={() => setSelectedPrinter(p)} style={{ cursor: 'pointer' }}>
                     <td><StatusDot status={p.comm} /></td>
                     <td style={{ fontWeight: 600, maxWidth: 220, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={p.local}>
                       {p.local || p.id}
@@ -424,7 +484,7 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
                     <td>{p.conexao || '—'}</td>
                     <td className="mono">{p.ip || '—'}</td>
                     {isAdmin && <td>{p.cliente}</td>}
-                    <td className="mono" style={{ color: p.comm === 'offline' ? DANGER : 'inherit' }}>
+                    <td className="mono" style={{ color: p.comm === 'offline' ? DANGER : p.comm === 'sem-monitoramento' ? ORANGE : 'inherit' }}>
                       {p.lastReading ? `${p.lastReading.data} (${p.daysSince}d)` : '—'}
                     </td>
                     {hasCounters && <td className="mono">{p.contador !== null ? p.contador.toLocaleString('pt-BR') : '—'}</td>}
@@ -471,5 +531,15 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
         </div>
       </div>
     </AppShell>
+
+    {selectedPrinter && (
+      <PrinterDetailModal
+        printer={selectedPrinter}
+        readings={readings}
+        isAdmin={isAdmin}
+        onClose={() => setSelectedPrinter(null)}
+      />
+    )}
+    </>
   );
 }

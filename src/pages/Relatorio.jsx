@@ -97,7 +97,7 @@ export default function Relatorio({ profile, isAdmin, onNavigate, onLogout }) {
             </div>
             <button className="cx-btn" onClick={handleExportPDF}
               style={{ background: ORANGE, color: '#fff', padding: '9px 16px', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
-              <FileText size={14} /> PDF (com logo e cabeçalho)
+              <FileText size={14} /> PDF
             </button>
             <button className="cx-btn" onClick={() => exportReportExcel(reportRows, reportTotals, effectiveReportClient, reportEnd)}
               style={{ background: '#fff', border: `1px solid ${LINE}`, padding: '9px 14px', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>

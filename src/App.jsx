@@ -68,6 +68,17 @@ export default function App() {
     );
   }
 
+  // Login recém-feito: a sessão já chegou via onAuthStateChange, mas o fetch do perfil
+  // (assíncrono, disparado no mesmo handler) ainda não voltou. Sem essa guarda, o render
+  // seguinte tenta ler profile.role com profile ainda null e quebra a árvore inteira.
+  if (!profile) {
+    return (
+      <div className="flex min-h-screen items-center justify-center" style={{ color: MUTED }}>
+        Carregando...
+      </div>
+    );
+  }
+
   const isAdmin = profile.role === 'admin';
   const pageProps = { profile, isAdmin, onNavigate: setTopView, onLogout: handleLogout };
 
