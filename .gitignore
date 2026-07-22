@@ -19,6 +19,9 @@ dist-ssr
 # Protótipo de referência — material de apoio ao desenvolvimento, não faz parte do app
 referencia/
 
+# Claude Code — permissões locais pessoais, não compartilhadas com o time
+.claude/settings.local.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
