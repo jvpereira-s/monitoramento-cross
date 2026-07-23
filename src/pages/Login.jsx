@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import CrossMark from '../components/CrossMark';
+import CrossEmblem from '../components/CrossEmblem';
 import Globe from '../components/Globe';
 import { signInWithUsername } from '../lib/auth';
 import { ORANGE, TEAL, INK, MUTED, DANGER } from '../lib/theme';
@@ -105,7 +106,7 @@ export default function Login() {
             />
           )}
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-            <CrossMark size={72} />
+            <CrossEmblem size={84} />
           </div>
         </div>
       </div>
