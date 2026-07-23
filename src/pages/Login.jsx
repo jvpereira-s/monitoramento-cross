@@ -109,6 +109,9 @@ export default function Login() {
             <CrossEmblem size={84} />
           </div>
         </div>
+        <div style={{ marginTop: 22, fontSize: 11.5, color: 'rgba(255,255,255,0.65)', textAlign: 'center' }}>
+          © 2026 Cross. Todos os direitos reservados.
+        </div>
       </div>
     </div>
   );
