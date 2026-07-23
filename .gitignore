@@ -22,6 +22,10 @@ referencia/
 # Claude Code — permissões locais pessoais, não compartilhadas com o time
 .claude/settings.local.json
 
+# Supabase CLI — estado local do `supabase link` (project ref, versões), não é segredo
+# mas é regenerado por máquina; não precisa versionar
+supabase/.temp/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

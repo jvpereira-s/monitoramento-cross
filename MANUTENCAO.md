@@ -87,9 +87,10 @@ um cálculo, etc.
    o cliente novo. Confira esse campo sempre que importar dado de um cliente diferente
    do padrão.
 
-Se a sincronização automática via API estiver ativa (seção 6), a mesma exigência de
-correspondência exata vale para o campo `customer.name` que vem do PrintWayy — é ele
-que preenche a coluna "Cliente" nesse caminho, no lugar do mapeamento manual do passo 3.
+A sincronização automática via API (seção 6) **não muda nada disso** — ela nunca
+escreve a coluna "Cliente", só atualiza contador/metadata de impressoras que já
+passaram por este cadastro. Ou seja: um cliente novo sempre entra por aqui (planilha)
+primeiro; a API só mantém os dados desse cliente atualizados depois.
 
 ## 4. Alterar o banco de dados com segurança
 
@@ -193,10 +194,15 @@ normalmente como plano B se a API ou a chave tiverem algum problema. Setup compl
   Functions → printwayy-sync → Logs**.
 - **Se a sincronização começar a falhar**: confira, nesta ordem, (1) se o token ainda
   é válido no PrintWayy (Configurações → Integração), (2) os logs da função pra ver a
-  mensagem de erro exata, (3) se o campo `customer.name` de alguma impressora mudou no
-  PrintWayy e não bate mais com nenhum "Cliente associado" cadastrado (a impressora
-  não desaparece do PrintWayy, mas o cliente errado faz o RLS esconder o dado). Import
-  manual continua disponível como fallback enquanto o problema não é resolvido.
+  mensagem de erro exata, (3) a resposta do botão "Sincronizar agora" — se
+  `notFoundInPrintwayy` > 0, o número de série cadastrado em `printers` não existe (ou
+  mudou) na PrintWayy; se `ambiguous` > 0, mais de um registro na PrintWayy bate com o
+  mesmo serial (cenário de reset de contador — a função já tenta escolher o "vivo"
+  automaticamente, mas vale conferir manualmente na PrintWayy se a lista for grande).
+  Import manual continua disponível como fallback enquanto o problema não é resolvido.
+- **Autenticação da chamada agendada (cron)**: use sempre a `service_role` no formato
+  novo (`sb_secret_...`), não a legada (JWT `eyJ...`) — a legada recebe 401 da própria
+  função. Ver `npx supabase projects api-keys --reveal` (campo `type: "secret"`).
 
 ## Resumo do que nunca fazer
 

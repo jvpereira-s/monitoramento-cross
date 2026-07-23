@@ -218,9 +218,11 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
     const result = await syncPrintwayy();
     setSyncing(false);
     if (!result.success) { setError(`Falha ao sincronizar: ${result.error}`); return; }
+    if (result.message) { setSyncMessage(result.message); return; }
     const parts = [`${result.synced} impressora(s) atualizada(s)`];
     if (result.failed) parts.push(`${result.failed} com erro`);
-    if (result.skippedNoCustomer) parts.push(`${result.skippedNoCustomer} sem cliente (ignoradas)`);
+    if (result.notFoundInPrintwayy) parts.push(`${result.notFoundInPrintwayy} não encontrada(s) no PrintWayy`);
+    if (result.ambiguous) parts.push(`${result.ambiguous} com serial duplicado no PrintWayy`);
     setSyncMessage(`Sincronização concluída: ${parts.join(', ')}.`);
     await loadData();
   }

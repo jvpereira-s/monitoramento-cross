@@ -118,30 +118,44 @@ raiz do domínio quanto numa subpasta, sem precisar reconfigurar nada.
 ## 6. Sincronização automática via API do PrintWayy
 
 Além da importação manual de planilha (que continua funcionando normalmente como
-fallback), o Painel pode puxar dados direto da API REST do PrintWayy Dragon —
-automaticamente todo dia, e a qualquer momento pelo botão **Sincronizar agora**
-(admin). As duas vias gravam nas mesmas tabelas, no mesmo formato — o resto do
-sistema não sabe nem precisa saber qual caminho originou uma leitura.
+fallback e é quem faz o cadastro inicial de cada impressora), o Painel pode atualizar
+os dados direto da API REST do PrintWayy Dragon — automaticamente todo dia, e a
+qualquer momento pelo botão **Sincronizar agora** (admin). É a planilha que decide
+**quais** impressoras existem e de qual cliente são; a API só atualiza contador e
+metadata (modelo/IP/local/conexão) de quem **já está cadastrado** — nunca cadastra
+impressora nova nem sobrescreve o campo "Cliente" (ver regra em `CLAUDE.md`, seção 5).
 
 1. **Configure o secret da API** (nunca em `.env`, nunca em variável `VITE_*` — essas
    são embutidas no bundle público do front-end):
    ```bash
-   supabase secrets set PRINTWAYY_API_KEY=SEU_TOKEN_DO_PRINTWAYY
+   npx supabase secrets set PRINTWAYY_API_KEY=SEU_TOKEN_DO_PRINTWAYY
    ```
    O token é gerado em PrintWayy → Configurações → Integração → Gerar token (exige
    usuário administrador no PrintWayy).
-2. **Implante a Edge Function** `printwayy-sync`: painel do Supabase → Edge Functions
-   → Deploy a new function → nome exatamente `printwayy-sync` → cole o conteúdo de
-   [supabase/functions/printwayy-sync/index.ts](supabase/functions/printwayy-sync/index.ts)
-   → implantar. Mesmo cuidado da seção 4 com tradução automática do navegador.
-3. **Desligue "Enforce JWT Verification" só para esta função** (Dashboard → Edge
-   Functions → `printwayy-sync` → Settings, ou `supabase functions deploy
-   printwayy-sync --no-verify-jwt`). Necessário porque a chave deste projeto já está
-   no formato novo do Supabase (`sb_publishable_.../sb_secret_...`, visto na seção 1)
-   — não é mais um JWT, então o cron (seção abaixo) seria rejeitado pelo gateway antes
-   de chegar no código. A função já valida o chamador sozinha (sessão de admin, ou a
-   própria service_role key para a chamada agendada), então desligar o check genérico
-   da plataforma não abre brecha nenhuma.
+2. **Implante a Edge Function** `printwayy-sync`. Duas opções:
+   - **CLI (recomendado)** — evita o risco de tradução automática do navegador
+     estragar o código colado (problema real da opção Dashboard, seção 4):
+     ```bash
+     npm install -D supabase
+     npx supabase login              # abre o navegador, autentica
+     npx supabase link --project-ref SEU_PROJECT_REF   # em Project Settings → General
+     npx supabase functions deploy printwayy-sync --use-api --no-verify-jwt
+     ```
+     `--use-api` evita exigir Docker Desktop rodando. `--no-verify-jwt` já resolve o
+     passo 3 abaixo nesse mesmo comando.
+   - **Dashboard** — Edge Functions → Deploy a new function → nome exatamente
+     `printwayy-sync` → cole o conteúdo de
+     [supabase/functions/printwayy-sync/index.ts](supabase/functions/printwayy-sync/index.ts)
+     → implantar. Mesmo cuidado da seção 4 com tradução automática do navegador —
+     confirme que o código colado continua em inglês/TypeScript antes de implantar.
+3. **Desligue "Enforce JWT Verification" só para esta função** — já incluído no
+   comando da CLI acima (`--no-verify-jwt`); se implantou pelo Dashboard, faça em Edge
+   Functions → `printwayy-sync` → Settings. Necessário porque a chave deste projeto já
+   está no formato novo do Supabase (`sb_publishable_.../sb_secret_...`) — não é mais
+   um JWT, então o cron (próximo passo) seria rejeitado pelo gateway antes de chegar no
+   código. A função já valida o chamador sozinha (sessão de admin, ou a própria
+   service_role key para a chamada agendada), então desligar o check genérico da
+   plataforma não abre brecha nenhuma.
 4. **Configure a sincronização agendada**: painel do Supabase → Cron Jobs → New cron
    job:
    - Nome: `printwayy-sync-diario`
@@ -149,18 +163,25 @@ sistema não sabe nem precisa saber qual caminho originou uma leitura.
      todo desde que o Brasil aboliu o horário de verão em 2019)
    - Tipo: HTTP Request, Método: POST
    - URL: `https://SEU-PROJETO.supabase.co/functions/v1/printwayy-sync`
-   - Headers: `Authorization: Bearer SUA_SERVICE_ROLE_KEY`, `Content-Type: application/json`
+   - Headers: `Authorization: Bearer SUA_SERVICE_ROLE_KEY_NOVO_FORMATO`,
+     `Content-Type: application/json`
    - Body: `{"action":"sync"}`
 
-**Atenção ao nome do cliente**: o campo `customer.name` que vem da API precisa bater
-**exatamente** com o "Cliente associado" configurado na tela de Usuários — a mesma
-regra de correspondência exata que já vale para a coluna "Cliente" do import manual
-(`MANUTENCAO.md`, seção 3). Se não bater, o RLS não libera dado nenhum pra esse
-cliente.
+   **Atenção**: use a `service_role` no formato **novo** (`sb_secret_...`), não a
+   legada (JWT começando com `eyJ...`) — testado na prática (23/07/2026): a legada
+   recebe 401 da própria função, porque `Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')`
+   dentro da Edge Function resolve pro valor novo nesse projeto. Pra ver o valor:
+   `npx supabase projects api-keys --project-ref SEU_PROJECT_REF --reveal` (campo
+   `type: "secret"`) ou Dashboard → Project Settings → API Keys.
 
-Impressoras cadastradas no PrintWayy mas não implantadas em nenhum cliente
-(`customer` nulo na API) são ignoradas pela sincronização por design — o schema deste
-projeto exige que toda impressora tenha um cliente.
+**Escopo da sincronização**: só impressoras já cadastradas em `printers` (via
+importação de planilha, seção 2, ou cadastro manual futuro) entram na sincronização —
+a função lê o cadastro, resolve cada número de série na API do PrintWayy
+(`GET /printers?serial-number=X`) e atualiza. Uma impressora com serial não encontrado
+na API aparece em `notFoundInPrintwayy` na resposta; nunca é criada nem removida por
+essa via. O campo "Cliente" nunca vem da API — é sempre o que foi definido no cadastro,
+porque é ele que a RLS usa pra isolar os dados por contrato (`profiles.cliente_associado`
+precisa bater exatamente com esse valor).
 
 ## Segurança — o que nunca fazer neste projeto
 

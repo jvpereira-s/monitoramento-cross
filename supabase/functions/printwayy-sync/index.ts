@@ -103,8 +103,9 @@ async function printwayyFetch(path: string): Promise<unknown> {
 }
 
 // Resolve UM serial cadastrado por nós pro registro correspondente na PrintWayy.
-// Substitui o fetchAllPrinters() antigo (paginava as 2.096 impressoras da CIBOX
-// inteira) — agora só busca quem a Cross realmente cadastrou, nunca o parque todo.
+// Substitui o fetchAllPrinters() antigo (paginava milhares de impressoras que não
+// pertencem ao parque da Cross) — agora só busca quem a Cross realmente cadastrou,
+// nunca o parque inteiro visível pela API key.
 // [Suposição não testada] Assumindo que o envelope de resposta é o mesmo {count, data}
 // documentado pra /printers paginado — só foi confirmado nesse formato pra listagem
 // completa, não especificamente filtrado por serial-number. Vale conferir na primeira
@@ -222,7 +223,8 @@ async function runSync(adminClient: ReturnType<typeof createClient>) {
 
   // Big O: O(impressoras cadastradas por nós) chamadas de resolução por serial +
   // O(mesma quantidade) chamadas de /counters — cresce só com o que a Cross gerencia,
-  // nunca com o tamanho do parque total da CIBOX (era O(parque inteiro) antes).
+  // nunca com o tamanho do parque total visível pela API key (era O(parque inteiro)
+  // antes).
   // Cada impressora isolada em try/catch: uma falha não derruba a sincronização das
   // outras.
   const results = await mapWithConcurrency(registered, COUNTERS_CONCURRENCY, async (reg) => {
