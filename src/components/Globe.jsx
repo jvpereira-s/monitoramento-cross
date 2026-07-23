@@ -245,6 +245,10 @@ export default function Globe({
       opacity: oceanRgba.a,
     });
     const oceanMesh = new Mesh(oceanGeometry, oceanMaterial);
+    // Totalmente transparente (alpha 0) ainda custa render se ficar visible=true — o
+    // WebGLRenderer pula objeto invisible na hora de desenhar, mas o Raycaster (usado
+    // pro hover em stopOnHover) não olha pra visible, então continua funcionando normal.
+    oceanMesh.visible = oceanRgba.a > 0;
     scene.add(oceanMesh);
 
     let globeOutlineMesh = null;

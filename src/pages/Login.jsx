@@ -10,6 +10,14 @@ import { ORANGE, TEAL, INK, MUTED, DANGER } from '../lib/theme';
 // aparece na tela (mobile).
 const SHOW_GLOBE_QUERY = '(min-width: 761px)';
 
+// Fora do componente de propósito: são objetos literais, e o useEffect do Globe
+// depende deles por referência. Se ficassem inline no JSX, cada re-render do Login
+// (cada tecla digitada nos campos) criaria um objeto novo, o Globe interpretaria
+// como "prop mudou" e destruiria/recriaria o WebGL inteiro — era por isso que o
+// globo sumia (e provavelmente boa parte do travamento) toda vez que alguém digitava.
+const GLOBE_DOTS = { color: '#ffffff', size: 4, density: 6, allDots: false };
+const GLOBE_MARKERS = { markers: [], color: '#ffffff', size: 30 };
+
 export default function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -81,20 +89,24 @@ export default function Login() {
         <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 22, textAlign: 'center', maxWidth: 340, lineHeight: 1.35, marginBottom: 28 }}>
           Visibilidade completa do parque de impressão.
         </div>
-        <div style={{ width: '100%', maxWidth: 280, aspectRatio: '1' }}>
+        <div style={{ position: 'relative', width: '100%', maxWidth: 280, aspectRatio: '1' }}>
           {showGlobe && (
             <Globe
-              dots={{ color: '#ffffff', size: 4, density: 7, allDots: false }}
+              dots={GLOBE_DOTS}
               fill="dots"
               oceanColor="rgba(0,0,0,0)"
               outlineColor="#ffffff"
               outlineWidth={1}
               showGrid={false}
-              markerConfig={{ markers: [], color: '#ffffff', size: 30 }}
+              markerConfig={GLOBE_MARKERS}
               speed={0}
               scale={8}
+              detail={4}
             />
           )}
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+            <CrossMark size={72} />
+          </div>
         </div>
       </div>
     </div>
