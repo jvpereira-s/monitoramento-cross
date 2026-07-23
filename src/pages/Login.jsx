@@ -91,7 +91,7 @@ export default function Login() {
               outlineWidth={1}
               showGrid={false}
               markerConfig={{ markers: [], color: '#ffffff', size: 30 }}
-              speed={1.5}
+              speed={0}
               scale={8}
             />
           )}
