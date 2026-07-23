@@ -2,13 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import {
-  Upload, AlertTriangle, Search, Settings, FileSpreadsheet, X, RefreshCw, Download, ShieldCheck,
+  Upload, AlertTriangle, Search, Settings, FileSpreadsheet, X, RefreshCw, Download, ShieldCheck, Plus,
 } from 'lucide-react';
 import AppShell from '../components/AppShell';
 import MiniDonut from '../components/MiniDonut';
 import StatusDot from '../components/StatusDot';
 import BarChartTopConsumo from '../components/BarChartTopConsumo';
 import PrinterDetailModal from '../components/PrinterDetailModal';
+import RegisterPrinterModal from '../components/RegisterPrinterModal';
 import { fetchPrinters, fetchReadings, saveImport } from '../lib/db';
 import { guessMapping, rowsFromSheet, FIELDS } from '../lib/mapping';
 import { buildImportPayload } from '../lib/importPrinters';
@@ -42,6 +43,7 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
   const [sortBy, setSortBy] = useState(null);
   const [sortDir, setSortDir] = useState('asc');
   const [selectedPrinter, setSelectedPrinter] = useState(null);
+  const [showRegisterModal, setShowRegisterModal] = useState(false);
 
   async function loadData() {
     setLoading(true);
@@ -243,6 +245,10 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
         <Upload size={14} /> Importar
         <input type="file" accept=".csv,.xlsx,.xls" onChange={handleFileSelect} style={{ display: 'none' }} />
       </label>
+      <button className="cx-btn cx-topbar-btn" onClick={() => setShowRegisterModal(true)}
+        style={{ padding: '7px 12px', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5 }}>
+        <Plus size={14} /> Impressora
+      </button>
     </>
   ) : null;
 
@@ -569,6 +575,19 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
         readings={readings}
         isAdmin={isAdmin}
         onClose={() => setSelectedPrinter(null)}
+      />
+    )}
+
+    {showRegisterModal && (
+      <RegisterPrinterModal
+        existingPrinters={printers}
+        knownClients={clients.filter((c) => c !== 'todos')}
+        onClose={() => setShowRegisterModal(false)}
+        onSaved={async (id) => {
+          setShowRegisterModal(false);
+          setSyncMessage(`Impressora ${id} cadastrada.`);
+          await loadData();
+        }}
       />
     )}
     </>

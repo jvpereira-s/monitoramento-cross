@@ -94,7 +94,8 @@ leitura somente do próprio contrato).
 - `src/pages/` — telas completas: `Login`, `Painel` (dashboard + import), `Relatorio`,
   `Usuarios` (gestão de contas, só admin).
 - `src/components/` — peças reutilizáveis de UI (`AppShell`, `PrinterDetailModal`,
-  gráficos, etc.), sem lógica de negócio própria — chamam as funções de `src/lib/`.
+  `RegisterPrinterModal`, `Globe` (globo 3D da tela de login), gráficos, etc.), sem
+  lógica de negócio própria — chamam as funções de `src/lib/`.
 - `supabase/migrations/` — schema do banco, aplicado manualmente via SQL Editor, em
   ordem numérica. Mudança de schema = nova migration numerada, nunca editar uma já
   aplicada em produção.
@@ -159,8 +160,12 @@ da planilha contra isso — pendência 3 abaixo, ainda não conferido contra o s
    **Bloqueado**: precisa do arquivo da planilha, que só existe com o usuário.
 4. **Rodar "Sincronizar agora" e conferir a resposta** — esperado `synced: 35`,
    `errors: []`, `notFoundInPrintwayy: 0`. Depende de 3.
-5. **Construir formulário de cadastro manual de impressora** (serial + cliente) —
-   necessário pra registrar cliente novo sem planilha histórica.
+5. ~~Construir formulário de cadastro manual de impressora~~ — feito
+   (`RegisterPrinterModal.jsx`, botão "Impressora" no Painel). Serial + cliente
+   obrigatórios, resto opcional; datalist com clientes já conhecidos pra reduzir erro
+   de digitação no campo cliente (RLS depende de bater exato); avisa se o serial já
+   existe antes de sobrescrever. Reaproveita `saveImport` (mesma função do import de
+   planilha), sem leitura ainda — só cadastro.
 6. **UI de relatório com seleção de datas**: intervalo customizado livre + presets de
    mês/trimestre — ainda não iniciado.
 7. **Testar isolamento RLS logando como cliente** — confirmar que só aparecem as 35
