@@ -156,16 +156,46 @@ impressora nova nem sobrescreve o campo "Cliente" (ver regra em `CLAUDE.md`, se�
    código. A função já valida o chamador sozinha (sessão de admin, ou a própria
    service_role key para a chamada agendada), então desligar o check genérico da
    plataforma não abre brecha nenhuma.
-4. **Configure a sincronização agendada**: painel do Supabase → Cron Jobs → New cron
-   job:
-   - Nome: `printwayy-sync-diario`
-   - Schedule: `0 11 * * *` (11:00 UTC = 08:00 no horário de Brasília, fixo o ano
-     todo desde que o Brasil aboliu o horário de verão em 2019)
-   - Tipo: HTTP Request, Método: POST
-   - URL: `https://SEU-PROJETO.supabase.co/functions/v1/printwayy-sync`
-   - Headers: `Authorization: Bearer SUA_SERVICE_ROLE_KEY_NOVO_FORMATO`,
-     `Content-Type: application/json`
-   - Body: `{"action":"sync"}`
+4. **Configure a sincronização agendada.** Neste projeto já está feito (23/07/2026) —
+   pulei o Dashboard e rodei direto por SQL, porque assim o token nunca passa por um
+   formulário/tela intermediária:
+   ```sql
+   create extension if not exists pg_cron;
+   create extension if not exists pg_net;
+
+   -- guarda a service_role (formato novo, sb_secret_...) no Vault — nunca em texto
+   -- puro no comando do cron abaixo
+   select vault.create_secret(
+     'SUA_SERVICE_ROLE_KEY_NOVO_FORMATO',
+     'printwayy_sync_service_key',
+     'service_role usada pelo cron do printwayy-sync'
+   );
+
+   select cron.schedule(
+     'printwayy-sync-diario',
+     '0 11 * * *', -- 11:00 UTC = 08:00 BRT (Brasil não tem mais DST desde 2019)
+     $$
+     select net.http_post(
+       url := 'https://SEU-PROJETO.supabase.co/functions/v1/printwayy-sync',
+       headers := jsonb_build_object(
+         'Content-Type', 'application/json',
+         'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'printwayy_sync_service_key')
+       ),
+       body := '{"action":"sync"}'::jsonb,
+       timeout_milliseconds := 60000
+     ) as request_id;
+     $$
+   );
+   ```
+   Rode isso no **SQL Editor** do Dashboard (ou via Management API, como foi feito
+   aqui). Confirmar: `select * from cron.job;` (deve aparecer `active: true`) e, depois
+   de qualquer execução, `select * from net._http_response order by id desc limit 5;`
+   pra ver o `status_code` da última chamada.
+
+   **Alternativa sem SQL**: Dashboard → Cron Jobs → New cron job → HTTP Request, mesma
+   URL/Schedule/Body, header `Authorization: Bearer SUA_SERVICE_ROLE_KEY_NOVO_FORMATO`
+   direto (sem Vault) — mais simples, mas a chave fica visível em texto puro pra quem
+   tiver acesso à configuração do cron job no Dashboard.
 
    **Atenção**: use a `service_role` no formato **novo** (`sb_secret_...`), não a
    legada (JWT começando com `eyJ...`) — testado na prática (23/07/2026): a legada

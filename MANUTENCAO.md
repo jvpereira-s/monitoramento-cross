@@ -189,9 +189,16 @@ normalmente como plano B se a API ou a chave tiverem algum problema. Setup compl
   ele for revogado no PrintWayy), rode de novo `supabase secrets set
   PRINTWAYY_API_KEY=NOVO_TOKEN` — não precisa reimplantar a função.
 - **Como saber se o cron rodou**: painel do Supabase → **Cron Jobs** → histórico de
-  execuções da `printwayy-sync-diario` (mostra status e horário de cada run). Pra ver
+  execuções da `printwayy-sync-diario` (mostra status e horário de cada run), ou via
+  SQL Editor: `select * from net._http_response order by id desc limit 5;` (mostra
+  `status_code` e corpo da resposta das últimas chamadas do `net.http_post`). Pra ver
   o que aconteceu dentro da função (quantas impressoras, quais falharam), **Edge
   Functions → printwayy-sync → Logs**.
+- **A service_role usada pelo cron fica no Vault** (`vault.decrypted_secrets`, nome
+  `printwayy_sync_service_key`), não em texto puro na definição do job. Se precisar
+  trocar (rotação de chave), rode de novo o `vault.create_secret(...)` do README seção
+  6 com o novo valor, ou `select vault.update_secret(id, novo_valor)` usando o id que
+  `select * from vault.secrets where name = 'printwayy_sync_service_key';` retorna.
 - **Se a sincronização começar a falhar**: confira, nesta ordem, (1) se o token ainda
   é válido no PrintWayy (Configurações → Integração), (2) os logs da função pra ver a
   mensagem de erro exata, (3) a resposta do botão "Sincronizar agora" — se

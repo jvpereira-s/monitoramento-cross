@@ -148,21 +148,36 @@ da planilha contra isso — pendência 3 abaixo, ainda não conferido contra o s
   antes de confiar 100% na precisão de `dateOfCapture`).
 
 **Pendências** (23/07/2026), nesta ordem — atualizar/riscar conforme for resolvendo:
-1. **Deploy da função `printwayy-sync`** — código no GitHub já tem o fix (commit
-   `4856a0f`), mas a versão rodando no Supabase ainda é a antiga (com o bug).
+1. ~~Deploy da função `printwayy-sync`~~ — feito (23/07/2026, via CLI: `npm install -D
+   supabase`, `supabase login`/`link`/`functions deploy --use-api --no-verify-jwt`).
+   `verify_jwt: false` confirmado, `manage-users` continua `true`.
 2. ~~Conferir front-end por `totalFromApi`/`skippedNoCustomer`~~ — feito, `Painel.jsx`
    já usa os nomes novos (`totalRegistered`/`notFoundInPrintwayy`/`ambiguous`).
 3. **Rodar a importação da planilha de São Gabriel** (35 impressoras, contrato
    049/2026) — `cliente` deve ficar exatamente `Saúde São Gabriel da Palha` (bate com
    `profiles.cliente_associado`). Popula `printers`, que é o escopo que o sync usa.
+   **Bloqueado**: precisa do arquivo da planilha, que só existe com o usuário.
 4. **Rodar "Sincronizar agora" e conferir a resposta** — esperado `synced: 35`,
-   `errors: []`, `notFoundInPrintwayy: 0`.
+   `errors: []`, `notFoundInPrintwayy: 0`. Depende de 3.
 5. **Construir formulário de cadastro manual de impressora** (serial + cliente) —
    necessário pra registrar cliente novo sem planilha histórica.
 6. **UI de relatório com seleção de datas**: intervalo customizado livre + presets de
    mês/trimestre — ainda não iniciado.
 7. **Testar isolamento RLS logando como cliente** — confirmar que só aparecem as 35
-   impressoras de São Gabriel.
-8. **Deploy HostGator + HTTPS** — build, subir, ativar SSL (AutoSSL no cPanel).
-9. **Confirmar regeneração do token do PrintWayy** exposto em captura de tela numa
-   sessão anterior — item de segurança, não deprioritizar só por estar por último.
+   impressoras de São Gabriel. Depende de 3.
+8. **Deploy HostGator + HTTPS** — build, subir, ativar SSL (AutoSSL no cPanel). Ação
+   manual do usuário (upload/cPanel), fora do alcance do Claude Code neste ambiente.
+9. ~~Confirmar regeneração do token do PrintWayy~~ — usuário forneceu um token novo
+   (23/07/2026), configurado como secret. Assumindo que é o token regenerado (não o
+   exposto) — não verificável remotamente, mas é o que foi informado.
+
+**Cron job `printwayy-sync-diario`**: configurado e validado ponta a ponta em
+23/07/2026 — não via Dashboard, via SQL direto (Management API do Supabase, com o
+access token pessoal do usuário como bearer, nunca persistido em arquivo). Sequência
+rodada: `create extension pg_cron`, `create extension pg_net`, a service_role (formato
+novo) guardada em `vault.create_secret(...)` (nunca em texto puro em SQL — só a chave
+do Vault, `printwayy_sync_service_key`, é referenciada), depois `cron.schedule(...)`
+chamando `net.http_post(...)` pra `printwayy-sync` às 11:00 UTC / 08:00 BRT todo dia.
+Teste manual do `net.http_post` (mesmo payload do cron) confirmado com `status_code:
+200` em `net._http_response`. Pra alterar/consultar: SQL Editor do Supabase,
+`select * from cron.job;` e `select * from net._http_response order by id desc;`.
