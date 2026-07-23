@@ -169,13 +169,20 @@ async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T)
 // mesmo de checar se vai conflitar; omitir a coluna quebra mesmo quando a intenção é
 // só atualizar). Passar o valor já existente de volta é o jeito de satisfazer a
 // constraint sem de fato mudar o dado.
+//
+// `local` também propositalmente fora do payload — mas por um motivo diferente de
+// `cliente`: essa coluna é nullable, então omitir a chave não esbarra no problema do
+// not null acima, só faz o upsert não tocar nela mesmo (comportamento que queremos).
+// `local` é o setor/departamento (ex: "Recepção", "Farmácia"), dado nosso, mantido
+// pelo admin — não tem equivalente confiável na API: `installationPoint` é o nome
+// técnico da máquina ligada à impressora (ex: "PC-RECEPCAO01"), não o nome do setor
+// pro usuário. Escrever isso por cima do setor real já causou confusão uma vez.
 function toPrinterRow(p: PrintwayyPrinter, cliente: string) {
   return {
     id: p.serialNumber.trim(),
     cliente,
     modelo: p.model || null,
     ip: p.ipAddress || null,
-    local: p.installationPoint || p.observation || p.location?.department || null,
     conexao: CONEXAO_MAP[p.type] || null,
     updated_at: new Date().toISOString(),
   };

@@ -55,6 +55,11 @@ leitura somente do próprio contrato).
   tem garantia nenhuma de bater com esse texto — é dado de um sistema de terceiro, sob
   controle da CIBOX, não da Cross. `printwayy-sync` nunca deve escrever esse campo
   (já causou um bug real, ver "Fluxo de dados").
+- **`printers.local` (setor/departamento, ex: "Recepção", "Farmácia") também é dado
+  nosso, nunca da API.** `installationPoint` da PrintWayy é o nome técnico da máquina
+  ligada à impressora (ex: "DESKTOP-V8FUBJP"), não o setor pro usuário final —
+  `printwayy-sync` escreveu isso por cima do setor real uma vez (23/07/2026),
+  confundindo o cliente. Mesma correção que `cliente`: campo fora do payload do sync.
 - **`service_role key` e `PRINTWAYY_API_KEY` nunca aparecem em código de front-end**
   nem em arquivo commitado. A primeira só existe dentro das Edge Functions
   (`manage-users`, `printwayy-sync`, injetada automaticamente pelo Supabase) ou em
