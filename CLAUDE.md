@@ -157,9 +157,27 @@ da planilha contra isso — pendência 3 abaixo, ainda não conferido contra o s
 3. **Rodar a importação da planilha de São Gabriel** (35 impressoras, contrato
    049/2026) — `cliente` deve ficar exatamente `Saúde São Gabriel da Palha` (bate com
    `profiles.cliente_associado`). Popula `printers`, que é o escopo que o sync usa.
-   **Bloqueado**: precisa do arquivo da planilha, que só existe com o usuário.
-4. **Rodar "Sincronizar agora" e conferir a resposta** — esperado `synced: 35`,
-   `errors: []`, `notFoundInPrintwayy: 0`. Depende de 3.
+   ~~Feito~~ (23/07/2026) — usuário mandou 3 PDFs de relatório por período (02/05–01/06,
+   01/06–01/07, 01/07–23/07). 35 impressoras + 140 leituras (4 datas de fronteira por
+   impressora) importadas direto via SQL (Management API), não pela UI — volume grande
+   demais pro formulário manual. Cada período validado contra o total oficial do
+   próprio PDF (49.309/49.729/30.228, bateram exato). **Ressalva**: os relatórios
+   mensais têm pequenos furos entre si (ex.: um termina com contador X, o próximo
+   começa com X-11) — no total inteiro isso é ruído desprezível (124.371 contra
+   124.358 do trimestral oficial, 13 páginas de diferença), mas uma consulta que pegue
+   exatamente um mês isolado (ex.: só junho) pode aparecer um pouco abaixo do PDF
+   daquele mês especificamente, porque o valor salvo na fronteira compartilhada é o
+   "fin" do período anterior, não o "ini" do seguinte. `local` de todas ficou
+   "Secretaria Municipal de Saúde" (não tinha localização mais específica no PDF).
+4. ~~Rodar "Sincronizar agora" e conferir a resposta~~ — feito (23/07/2026), com dado
+   real: `{"totalRegistered":35,"notFoundInPrintwayy":0,"ambiguous":0,"synced":35,
+   "failed":0,"errors":[]}` — bateu exatamente o esperado. **Bug real encontrado e
+   corrigido nesse teste**: `toPrinterRow` omitia `cliente` do payload (intenção:
+   nunca sobrescrever), mas Postgres valida a constraint not null da linha candidata
+   em `INSERT ... ON CONFLICT DO UPDATE` antes de checar o conflito — omitir a coluna
+   quebrava a sincronização inteira com erro 502. Fix: passar `reg.cliente` (o valor
+   já existente, lido do nosso cadastro) de volta no payload — satisfaz a constraint
+   sem mudar o dado.
 5. ~~Construir formulário de cadastro manual de impressora~~ — feito
    (`RegisterPrinterModal.jsx`, botão "Impressora" no Painel). Serial + cliente
    obrigatórios, resto opcional; datalist com clientes já conhecidos pra reduzir erro
@@ -174,7 +192,12 @@ da planilha contra isso — pendência 3 abaixo, ainda não conferido contra o s
    disponível, dá no mesmo resultado sem caso especial. Testado manualmente contra
    viradas de ano e ano bissexto.
 7. **Testar isolamento RLS logando como cliente** — confirmar que só aparecem as 35
-   impressoras de São Gabriel. Depende de 3.
+   impressoras de São Gabriel. Dado já pronto (pendência 3); falta só a conta de
+   teste. Criar usuário é ação de credencial real — o classificador do Claude Code
+   bloqueou a tentativa de criar programaticamente, corretamente (é exatamente o tipo
+   de ação que precisa de confirmação explícita, não decisão autônoma). Fazer pela
+   tela **Usuários** mesmo: Papel = Cliente, Cliente associado = exatamente `Saúde São
+   Gabriel da Palha`.
 8. **Deploy HostGator + HTTPS** — build, subir, ativar SSL (AutoSSL no cPanel). Ação
    manual do usuário (upload/cPanel), fora do alcance do Claude Code neste ambiente.
 9. ~~Confirmar regeneração do token do PrintWayy~~ — usuário forneceu um token novo

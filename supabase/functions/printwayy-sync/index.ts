@@ -163,13 +163,16 @@ async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T)
   return results;
 }
 
-// `cliente` propositalmente ausente aqui — é dado nosso, definido pelo admin no
-// cadastro (fetchRegisteredPrinters), nunca sobrescrito pelo customer.name da
-// PrintWayy. Upsert com essa chave ausente não toca a coluna `cliente` na linha
-// existente (ver comentário em runSync).
-function toPrinterRow(p: PrintwayyPrinter) {
+// `cliente` vem do nosso próprio cadastro (fetchRegisteredPrinters), nunca do
+// customer.name da PrintWayy — precisa estar presente no payload (Postgres valida a
+// constraint not null da linha candidata em INSERT ... ON CONFLICT DO UPDATE antes
+// mesmo de checar se vai conflitar; omitir a coluna quebra mesmo quando a intenção é
+// só atualizar). Passar o valor já existente de volta é o jeito de satisfazer a
+// constraint sem de fato mudar o dado.
+function toPrinterRow(p: PrintwayyPrinter, cliente: string) {
   return {
     id: p.serialNumber.trim(),
+    cliente,
     modelo: p.model || null,
     ip: p.ipAddress || null,
     local: p.installationPoint || p.observation || p.location?.department || null,
@@ -248,7 +251,7 @@ async function runSync(adminClient: ReturnType<typeof createClient>) {
   // insere linha nova aqui (quem cria linha nova em `printers` é a importação de
   // planilha ou um cadastro manual do admin, nunca o sync). `cliente` não entra no
   // payload, então o upsert não toca essa coluna.
-  const printersPayload = results.filter((r) => r.printer).map((r) => toPrinterRow(r.printer!));
+  const printersPayload = results.filter((r) => r.printer).map((r) => toPrinterRow(r.printer!, r.reg.cliente));
   if (printersPayload.length) {
     const { error } = await adminClient.from('printers').upsert(printersPayload, { onConflict: 'id' });
     if (error) throw new Error(`Falha ao atualizar impressoras: ${error.message}`);
