@@ -23,7 +23,13 @@ export async function saveImport(printers, readings) {
     if (error) return { success: false, error: error.message };
   }
   if (readings.length) {
-    const { error } = await supabase.from('readings').insert(readings);
+    // Upsert por (printer_id, data) — não insert puro: a sincronização via API
+    // (Edge Function printwayy-sync) grava leituras no mesmo formato, e reimportar de
+    // propósito o mesmo dia deve sobrescrever, não duplicar nem falhar por conflito.
+    const { error } = await supabase.from('readings').upsert(readings, {
+      onConflict: 'printer_id,data',
+      ignoreDuplicates: false,
+    });
     if (error) return { success: false, error: error.message };
   }
   return { success: true };

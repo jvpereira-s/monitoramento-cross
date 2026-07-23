@@ -42,6 +42,9 @@ clientes) e **cliente** (externo, leitura somente do próprio contrato).
   commitado. Ela só existe dentro da Edge Function `manage-users` (injetada
   automaticamente pelo Supabase) ou em comandos pontuais de terminal para bootstrap
   manual (ver `README.md`).
+- **A `PRINTWAYY_API_KEY` segue a mesma regra da `service_role key`**: nunca em
+  código de front-end, nunca em variável `VITE_*`, nunca commitada. Só existe como
+  secret da Edge Function `printwayy-sync` (ver `README.md` seção 6).
 - **Sem `localStorage`/`sessionStorage` para dado de negócio** (impressoras, leituras,
   relatórios). Tudo vive no Supabase — sessão de auth é a única coisa que o SDK do
   Supabase guarda no browser, e isso é gerenciado pela própria lib, não por nós.
@@ -64,6 +67,8 @@ clientes) e **cliente** (externo, leitura somente do próprio contrato).
   - `reportExport.js` — exportação CSV/Excel/PDF do relatório.
   - `auth.js` / `users.js` — login por usuário (e-mail sintético `user@cross.local`) e
     operações privilegiadas de conta (via Edge Function `manage-users`).
+  - `printwayySync.js` — dispara a sincronização via API do PrintWayy (Edge Function
+    `printwayy-sync`), chamada pelo botão "Sincronizar agora" no Painel.
   - `theme.js` — paleta de cores da marca.
 - `src/pages/` — telas completas: `Login`, `Painel` (dashboard + import), `Relatorio`,
   `Usuarios` (gestão de contas, só admin).
@@ -74,11 +79,18 @@ clientes) e **cliente** (externo, leitura somente do próprio contrato).
   aplicada em produção.
 - `supabase/functions/manage-users/` — Edge Function (Deno) para criar/excluir/trocar
   senha de usuário; é a única peça do sistema com acesso à `service_role key`.
+- `supabase/functions/printwayy-sync/` — Edge Function (Deno) que busca impressoras e
+  contadores na API REST do PrintWayy e grava em `printers`/`readings`; única peça com
+  acesso à `PRINTWAYY_API_KEY`. Disparada por Cron Job diário (Dashboard do Supabase)
+  e pelo botão "Sincronizar agora" no Painel.
 
-**Fluxo de dados**: planilha do PrintWayy → tela de mapeamento de colunas (`Painel`) →
-`buildImportPayload` → `saveImport` grava em `printers` (upsert por nº de série) e
-`readings` (insert) → `computePrinterStats`/`computeReportRows` derivam tudo que a UI
-mostra a partir dessas duas tabelas. Nenhum dado de negócio fica fora do Supabase.
+**Fluxo de dados** — duas vias, mesmo destino: (1) planilha do PrintWayy → tela de
+mapeamento de colunas (`Painel`) → `buildImportPayload` → `saveImport`; (2) API REST
+do PrintWayy → Edge Function `printwayy-sync` (agendada ou manual). As duas gravam em
+`printers` (upsert por nº de série) e `readings` (upsert por impressora+data) no mesmo
+formato — `computePrinterStats`/`computeReportRows` derivam tudo que a UI mostra a
+partir dessas duas tabelas sem saber (nem precisar saber) qual via originou uma linha.
+Nenhum dado de negócio fica fora do Supabase.
 
 **Stack**: Vite + React (JS puro, sem TypeScript no front), Tailwind CSS v4, Supabase
 (Postgres + Auth + Edge Functions), recharts, papaparse, xlsx. Deploy: build estático

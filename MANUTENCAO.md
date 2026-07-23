@@ -87,6 +87,10 @@ um cálculo, etc.
    o cliente novo. Confira esse campo sempre que importar dado de um cliente diferente
    do padrão.
 
+Se a sincronização automática via API estiver ativa (seção 6), a mesma exigência de
+correspondência exata vale para o campo `customer.name` que vem do PrintWayy — é ele
+que preenche a coluna "Cliente" nesse caminho, no lugar do mapeamento manual do passo 3.
+
 ## 4. Alterar o banco de dados com segurança
 
 Qualquer mudança de schema (nova coluna, nova tabela, nova constraint, nova policy de
@@ -101,7 +105,11 @@ Antes de rodar qualquer migration (ou qualquer SQL manual) contra o banco de pro
    trivial — o custo do backup é baixo, o custo de perder dado de cliente não é.
 2. Leia o SQL inteiro antes de rodar. Prefira mudanças aditivas (`ADD COLUMN` que
    aceita nulo) a destrutivas (`DROP COLUMN`, `DROP TABLE`, `ALTER ... NOT NULL` numa
-   tabela com dado existente que pode violar a constraint).
+   tabela com dado existente que pode violar a constraint). Exemplo real do padrão
+   "destrutivo mas necessário" já neste projeto: `0003_readings_unique_constraint.sql`
+   apaga leituras duplicadas antes de criar uma unique constraint (que exige dado sem
+   violação pra ser criada) — backup antes, sem exceção, mesmo com o `IF EXISTS`/
+   filtro cuidadosos no SQL.
 3. Rode no **SQL Editor** do painel do Supabase, em uma migration por vez. Se algo
    der erro no meio, pare e resolva antes de continuar — não tem transação automática
    entre migrations diferentes.
@@ -166,6 +174,30 @@ conferir se essa tela existe e tem dado no seu projeto — se sim, é uma camada
 segurança além do `pg_dump` manual, não um substituto (o manual você controla o
 timing, o automático só ajuda dentro da janela de retenção do plano).
 
+## 6. Sincronização automática (API do PrintWayy)
+
+Além do botão **Importar** (planilha), o Painel pode puxar dados direto da API do
+PrintWayy: automaticamente todo dia via **Cron Job** agendado no Supabase, ou a
+qualquer momento pelo botão **Sincronizar agora** (admin). As duas vias — API e
+planilha — gravam nas mesmas tabelas, então o import manual continua funcionando
+normalmente como plano B se a API ou a chave tiverem algum problema. Setup completo
+(secret, deploy da função, cron) está em `README.md`, seção 6.
+
+- **Onde mora o token**: só como secret da Edge Function `printwayy-sync`
+  (`PRINTWAYY_API_KEY`), nunca em arquivo do repositório. Pra trocar o token (ex.: se
+  ele for revogado no PrintWayy), rode de novo `supabase secrets set
+  PRINTWAYY_API_KEY=NOVO_TOKEN` — não precisa reimplantar a função.
+- **Como saber se o cron rodou**: painel do Supabase → **Cron Jobs** → histórico de
+  execuções da `printwayy-sync-diario` (mostra status e horário de cada run). Pra ver
+  o que aconteceu dentro da função (quantas impressoras, quais falharam), **Edge
+  Functions → printwayy-sync → Logs**.
+- **Se a sincronização começar a falhar**: confira, nesta ordem, (1) se o token ainda
+  é válido no PrintWayy (Configurações → Integração), (2) os logs da função pra ver a
+  mensagem de erro exata, (3) se o campo `customer.name` de alguma impressora mudou no
+  PrintWayy e não bate mais com nenhum "Cliente associado" cadastrado (a impressora
+  não desaparece do PrintWayy, mas o cliente errado faz o RLS esconder o dado). Import
+  manual continua disponível como fallback enquanto o problema não é resolvido.
+
 ## Resumo do que nunca fazer
 
 - Editar migration já aplicada em produção.
@@ -173,3 +205,5 @@ timing, o automático só ajuda dentro da janela de retenção do plano).
 - Colar `service_role key` em qualquer arquivo do repositório.
 - Reimplementar isolamento de cliente na UI em vez de confiar no RLS.
 - Publicar (fazer commit) mudança que quebrou `npm run build` ou `npx oxlint src`.
+- Colocar `PRINTWAYY_API_KEY` em variável `VITE_` ou em qualquer arquivo do
+  repositório — só como secret da Edge Function `printwayy-sync`.

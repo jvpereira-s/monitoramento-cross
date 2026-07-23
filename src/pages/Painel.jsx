@@ -12,6 +12,7 @@ import PrinterDetailModal from '../components/PrinterDetailModal';
 import { fetchPrinters, fetchReadings, saveImport } from '../lib/db';
 import { guessMapping, rowsFromSheet, FIELDS } from '../lib/mapping';
 import { buildImportPayload } from '../lib/importPrinters';
+import { syncPrintwayy } from '../lib/printwayySync';
 import {
   computePrinterStats, computeKpis, computeLastSync, computeOfflineList, computeSemMonitoramentoList,
   computeConexaoData, computeTopConsumo, computeTopClientes,
@@ -31,6 +32,8 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
   const [manualDate, setManualDate] = useState('');
   const [manualDateIni, setManualDateIni] = useState('');
   const [importing, setImporting] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState(null);
 
   const [search, setSearch] = useState('');
   const [clientFilter, setClientFilter] = useState('todos');
@@ -208,6 +211,20 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
     setManualDateIni('');
   }
 
+  async function handleSync() {
+    setSyncing(true);
+    setError(null);
+    setSyncMessage(null);
+    const result = await syncPrintwayy();
+    setSyncing(false);
+    if (!result.success) { setError(`Falha ao sincronizar: ${result.error}`); return; }
+    const parts = [`${result.synced} impressora(s) atualizada(s)`];
+    if (result.failed) parts.push(`${result.failed} com erro`);
+    if (result.skippedNoCustomer) parts.push(`${result.skippedNoCustomer} sem cliente (ignoradas)`);
+    setSyncMessage(`Sincronização concluída: ${parts.join(', ')}.`);
+    await loadData();
+  }
+
   const title = isAdmin ? 'Painel' : `Painel do cliente — ${profile.cliente_associado}`;
 
   const topbarExtra = isAdmin ? (
@@ -215,6 +232,10 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
       <button className="cx-btn cx-topbar-btn" onClick={() => setShowSettings((s) => !s)}
         style={{ padding: '7px 12px', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5 }}>
         <Settings size={14} /> Ajustes
+      </button>
+      <button className="cx-btn" onClick={handleSync} disabled={syncing}
+        style={{ background: TEAL, color: '#fff', padding: '7px 13px', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5 }}>
+        <RefreshCw size={14} /> {syncing ? 'Sincronizando...' : 'Sincronizar agora'}
       </button>
       <label className="cx-btn" style={{ background: ORANGE, color: '#fff', padding: '7px 13px', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, cursor: 'pointer' }}>
         <Upload size={14} /> Importar
@@ -232,6 +253,13 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
         <div className="no-print" style={{ background: '#FBEAE8', border: '1px solid #E8B4AC', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#7A281E', display: 'flex', justifyContent: 'space-between' }}>
           <span><AlertTriangle size={14} style={{ verticalAlign: -2, marginRight: 6 }} />{error}</span>
           <button onClick={() => setError(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#7A281E' }}><X size={14} /></button>
+        </div>
+      )}
+
+      {syncMessage && (
+        <div className="no-print" style={{ background: '#E7F3F0', border: '1px solid #BFE0D8', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#1F5C4F', display: 'flex', justifyContent: 'space-between' }}>
+          <span><RefreshCw size={14} style={{ verticalAlign: -2, marginRight: 6 }} />{syncMessage}</span>
+          <button onClick={() => setSyncMessage(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#1F5C4F' }}><X size={14} /></button>
         </div>
       )}
 
@@ -255,7 +283,8 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
         <div style={{ background: '#fff', border: '1px dashed #C7CCC3', borderRadius: 12, padding: '56px 24px', textAlign: 'center' }}>
           <FileSpreadsheet size={32} color="#9CA3AF" />
           <p style={{ marginTop: 12, fontSize: 14, color: MUTED }}>
-            Nenhum dado importado ainda. Exporte a planilha do PrintWayy filtrada para a Cross e importe aqui —<br />
+            Nenhum dado ainda. Clique em "Sincronizar agora" para importar automaticamente da
+            API do PrintWayy, ou exporte a planilha do PrintWayy filtrada para a Cross e importe aqui —<br />
             o mapeamento de colunas é feito no próximo passo.
           </p>
         </div>
