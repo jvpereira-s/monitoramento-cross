@@ -166,8 +166,13 @@ da planilha contra isso — pendência 3 abaixo, ainda não conferido contra o s
    de digitação no campo cliente (RLS depende de bater exato); avisa se o serial já
    existe antes de sobrescrever. Reaproveita `saveImport` (mesma função do import de
    planilha), sem leitura ainda — só cadastro.
-6. **UI de relatório com seleção de datas**: intervalo customizado livre + presets de
-   mês/trimestre — ainda não iniciado.
+6. ~~UI de relatório com seleção de datas~~ — feito. Intervalo customizado livre já
+   existia (`reportStart`/`reportEnd`, dois `<input type="date">`); adicionados 4
+   presets (`currentMonthRange`/`previousMonthRange`/`currentQuarterRange`/
+   `previousQuarterRange` em `report.js`) — mês/trimestre são o calendário cheio, não
+   "até hoje", porque `computeReportRows` já limita pela leitura mais recente
+   disponível, dá no mesmo resultado sem caso especial. Testado manualmente contra
+   viradas de ano e ano bissexto.
 7. **Testar isolamento RLS logando como cliente** — confirmar que só aparecem as 35
    impressoras de São Gabriel. Depende de 3.
 8. **Deploy HostGator + HTTPS** — build, subir, ativar SSL (AutoSSL no cPanel). Ação

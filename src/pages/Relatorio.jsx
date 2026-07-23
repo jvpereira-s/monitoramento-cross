@@ -4,7 +4,10 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import AppShell from '../components/AppShell';
 import CrossMark from '../components/CrossMark';
 import { fetchPrinters, fetchReadings } from '../lib/db';
-import { computeReportRows, computeReportTotals, computeDailyTrend, formatDateBR } from '../lib/report';
+import {
+  computeReportRows, computeReportTotals, computeDailyTrend, formatDateBR,
+  currentMonthRange, previousMonthRange, currentQuarterRange, previousQuarterRange,
+} from '../lib/report';
 import { computeLastSync } from '../lib/printerStats';
 import { exportReportCSV, exportReportExcel, exportReportPDF } from '../lib/reportExport';
 import { ORANGE, MUTED, LINE } from '../lib/theme';
@@ -61,6 +64,19 @@ export default function Relatorio({ profile, isAdmin, onNavigate, onLogout }) {
     if (!result.success) setError(result.error);
   }
 
+  function applyPreset(rangeFn) {
+    const { start, end } = rangeFn();
+    setReportStart(start);
+    setReportEnd(end);
+  }
+
+  const PRESETS = [
+    ['Mês atual', currentMonthRange],
+    ['Mês anterior', previousMonthRange],
+    ['Trimestre atual', currentQuarterRange],
+    ['Trimestre anterior', previousQuarterRange],
+  ];
+
   const title = isAdmin ? 'Relatório de Impressões' : `Painel do cliente — ${profile.cliente_associado}`;
 
   return (
@@ -78,6 +94,14 @@ export default function Relatorio({ profile, isAdmin, onNavigate, onLogout }) {
         <div style={{ padding: '56px 0', textAlign: 'center', color: MUTED, fontSize: 13.5 }}>Carregando...</div>
       ) : (
         <div>
+          <div className="no-print" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+            {PRESETS.map(([label, rangeFn]) => (
+              <button key={label} className="cx-btn" onClick={() => applyPreset(rangeFn)}
+                style={{ background: 'none', border: `1px solid ${LINE}`, padding: '5px 11px', fontSize: 12, color: MUTED }}>
+                {label}
+              </button>
+            ))}
+          </div>
           <div className="no-print" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'end', marginBottom: 18 }}>
             {isAdmin && (
               <div>

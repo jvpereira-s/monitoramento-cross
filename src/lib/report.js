@@ -4,6 +4,46 @@ export function formatDateBR(iso) {
   return `${d}/${m}/${y}`;
 }
 
+function pad2(n) {
+  return String(n).padStart(2, '0');
+}
+
+function toISODate(date) {
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+}
+
+// Presets de período pro seletor de datas do relatório — mês e trimestre, atual e
+// anterior. Mês/trimestre "atual" usa o mês/trimestre calendário inteiro (não só até
+// hoje): como computeReportRows já limita a leitura mais recente <= data final, pedir
+// o mês cheio dá o mesmo resultado que pedir só até hoje, sem precisar de caso especial.
+export function currentMonthRange(today = new Date()) {
+  const start = new Date(today.getFullYear(), today.getMonth(), 1);
+  const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+  return { start: toISODate(start), end: toISODate(end) };
+}
+
+export function previousMonthRange(today = new Date()) {
+  const start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+  const end = new Date(today.getFullYear(), today.getMonth(), 0);
+  return { start: toISODate(start), end: toISODate(end) };
+}
+
+export function currentQuarterRange(today = new Date()) {
+  const quarter = Math.floor(today.getMonth() / 3);
+  const start = new Date(today.getFullYear(), quarter * 3, 1);
+  const end = new Date(today.getFullYear(), quarter * 3 + 3, 0);
+  return { start: toISODate(start), end: toISODate(end) };
+}
+
+export function previousQuarterRange(today = new Date()) {
+  const quarter = Math.floor(today.getMonth() / 3) - 1;
+  const year = quarter < 0 ? today.getFullYear() - 1 : today.getFullYear();
+  const normalizedQuarter = quarter < 0 ? 3 : quarter;
+  const start = new Date(year, normalizedQuarter * 3, 1);
+  const end = new Date(year, normalizedQuarter * 3 + 3, 0);
+  return { start: toISODate(start), end: toISODate(end) };
+}
+
 // Big O: O(impressoras do cliente × leituras por impressora) — para cada impressora do
 // contrato, filtra o próprio histórico em duas passadas (leituras <= início, leituras <=
 // fim) para achar a leitura de fronteira de cada ponta do período. Validado contra o PDF
