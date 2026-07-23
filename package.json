@@ -12,6 +12,7 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.110.7",
     "@tailwindcss/postcss": "^4.3.3",
+    "d3-geo": "^3.1.1",
     "lucide-react": "^1.25.0",
     "papaparse": "^5.5.4",
     "postcss": "^8.5.21",
@@ -19,6 +20,7 @@
     "react-dom": "^19.2.7",
     "recharts": "^3.10.0",
     "tailwindcss": "^4.3.3",
+    "three": "^0.185.1",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
@@ -26,6 +28,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",
     "oxlint": "^1.71.0",
+    "supabase": "^2.109.1",
     "vite": "^8.1.1"
   }
 }

@@ -1,15 +1,30 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import CrossMark from '../components/CrossMark';
-import LoginIllustration from '../components/LoginIllustration';
+import Globe from '../components/Globe';
 import { signInWithUsername } from '../lib/auth';
 import { ORANGE, TEAL, INK, MUTED, DANGER } from '../lib/theme';
+
+// Mesmo breakpoint de src/index.css (.cx-login-side { display: none }) — evita
+// inicializar WebGL/three.js e buscar o GeoJSON à toa quando o painel laranja nem
+// aparece na tela (mobile).
+const SHOW_GLOBE_QUERY = '(min-width: 761px)';
 
 export default function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [showGlobe, setShowGlobe] = useState(
+    () => window.matchMedia(SHOW_GLOBE_QUERY).matches
+  );
+
+  useEffect(() => {
+    const mq = window.matchMedia(SHOW_GLOBE_QUERY);
+    const onChange = (e) => setShowGlobe(e.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
 
   async function submit() {
     if (busy) return;
@@ -66,7 +81,21 @@ export default function Login() {
         <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 22, textAlign: 'center', maxWidth: 340, lineHeight: 1.35, marginBottom: 28 }}>
           Visibilidade completa do parque de impressão.
         </div>
-        <LoginIllustration />
+        <div style={{ width: '100%', maxWidth: 280, aspectRatio: '1' }}>
+          {showGlobe && (
+            <Globe
+              dots={{ color: '#ffffff', size: 4, density: 7, allDots: false }}
+              fill="dots"
+              oceanColor="rgba(0,0,0,0)"
+              outlineColor="#ffffff"
+              outlineWidth={1}
+              showGrid={false}
+              markerConfig={{ markers: [], color: '#ffffff', size: 30 }}
+              speed={1.5}
+              scale={8}
+            />
+          )}
+        </div>
       </div>
     </div>
   );
