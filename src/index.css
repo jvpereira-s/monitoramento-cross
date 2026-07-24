@@ -23,10 +23,12 @@ body {
   background: #fff;
   color: #111111;
   font-family: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 .cx-input:focus {
-  outline: 2px solid #E8720C;
-  outline-offset: 1px;
+  outline: none;
+  border-color: #E8720C;
+  box-shadow: 0 0 0 3px rgba(232, 114, 12, 0.15);
 }
 .cx-btn {
   border: none;

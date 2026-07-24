@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import CrossMark from '../components/CrossMark';
-import CrossEmblem from '../components/CrossEmblem';
 import Globe from '../components/Globe';
 import { signInWithUsername } from '../lib/auth';
 import { ORANGE, TEAL, INK, MUTED, DANGER } from '../lib/theme';
@@ -69,11 +68,17 @@ export default function Login() {
           <div style={{ fontSize: 13, color: MUTED, marginBottom: 26 }}>
             Monitoramento de impressoras. Preencha os campos abaixo.
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <input className="cx-input" placeholder="Usuário" value={username} autoFocus
-              onKeyDown={onKeyDown} onChange={(e) => setUsername(e.target.value)} />
-            <input className="cx-input" type="password" placeholder="Senha" value={password}
-              onKeyDown={onKeyDown} onChange={(e) => setPassword(e.target.value)} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div>
+              <label style={{ fontSize: 12, color: MUTED, display: 'block', marginBottom: 4 }}>Usuário</label>
+              <input className="cx-input" style={{ width: '100%' }} placeholder="seu.usuario" value={username} autoFocus
+                onKeyDown={onKeyDown} onChange={(e) => setUsername(e.target.value)} />
+            </div>
+            <div>
+              <label style={{ fontSize: 12, color: MUTED, display: 'block', marginBottom: 4 }}>Senha</label>
+              <input className="cx-input" style={{ width: '100%' }} type="password" placeholder="••••••••" value={password}
+                onKeyDown={onKeyDown} onChange={(e) => setPassword(e.target.value)} />
+            </div>
             {error && (
               <div style={{ fontSize: 12.5, color: DANGER, display: 'flex', alignItems: 'center', gap: 6 }}>
                 <AlertTriangle size={13} /> {error}
@@ -90,7 +95,7 @@ export default function Login() {
         <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 22, textAlign: 'center', maxWidth: 340, lineHeight: 1.35, marginBottom: 28 }}>
           Visibilidade completa do parque de impressão.
         </div>
-        <div style={{ position: 'relative', width: '100%', maxWidth: 280, aspectRatio: '1' }}>
+        <div style={{ width: '100%', maxWidth: 280, aspectRatio: '1' }}>
           {showGlobe && (
             <Globe
               dots={GLOBE_DOTS}
@@ -100,14 +105,11 @@ export default function Login() {
               outlineWidth={1}
               showGrid={false}
               markerConfig={GLOBE_MARKERS}
-              speed={0}
+              speed={1}
               scale={8}
               detail={4}
             />
           )}
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-            <CrossEmblem size={84} />
-          </div>
         </div>
         <div style={{ marginTop: 22, fontSize: 11.5, color: 'rgba(255,255,255,0.65)', textAlign: 'center' }}>
           © 2026 Cross. Todos os direitos reservados.
