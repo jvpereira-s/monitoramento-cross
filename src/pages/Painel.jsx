@@ -367,9 +367,6 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: MUTED }}>Comunicação</div>
                 <div className="mono" style={{ fontSize: 22, fontWeight: 600, color: INK, marginTop: 4 }}>{kpis.online}/{kpis.total}</div>
-                {kpis.semMonitoramento > 0 && (
-                  <div style={{ fontSize: 10.5, color: ORANGE, marginTop: 2 }}>{kpis.semMonitoramento} sem monitoramento de páginas</div>
-                )}
               </div>
               <MiniDonut data={commPieData} />
             </div>
@@ -386,10 +383,10 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
 
             <div style={{ background: '#fff', border: `1px solid ${LINE}`, borderRadius: 10, padding: '14px 16px' }}>
               <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: MUTED }}>
-                Taxa comunicando
+                Sem monitoramento
               </div>
               <div className="mono" style={{ fontSize: 26, fontWeight: 600, color: ORANGE_DEEP, marginTop: 4 }}>
-                {kpis.total ? Math.round((kpis.online / kpis.total) * 100) + '%' : '—'}
+                {kpis.semMonitoramento}
               </div>
             </div>
           </div>
