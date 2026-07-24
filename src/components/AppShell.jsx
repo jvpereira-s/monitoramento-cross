@@ -44,7 +44,9 @@ export default function AppShell({
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             {lastSync && (() => {
               const color = lastSync.daysAgo <= 1 ? TEAL : lastSync.daysAgo <= 3 ? ORANGE : DANGER;
-              const label = lastSync.daysAgo === 0 ? 'hoje' : lastSync.daysAgo === 1 ? 'ontem' : `há ${lastSync.daysAgo} dias`;
+              const label = lastSync.daysAgo === 0 ? `às ${lastSync.time}h`
+                : lastSync.daysAgo === 1 ? `ontem às ${lastSync.time}h`
+                : `há ${lastSync.daysAgo} dias`;
               return (
                 <span style={{ fontSize: 11.5, display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 20, background: 'rgba(255,255,255,0.08)' }}>
                   <span style={{ width: 7, height: 7, borderRadius: '50%', background: color, flexShrink: 0 }} />

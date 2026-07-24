@@ -60,8 +60,16 @@ export default function Relatorio({ profile, isAdmin, onNavigate, onLogout }) {
   const lastSync = useMemo(() => computeLastSync(printers, readings), [printers, readings]);
 
   function handleExportPDF() {
-    const result = exportReportPDF(reportRows, reportTotals, effectiveReportClient, reportStart, reportEnd);
+    const result = exportReportPDF(reportRows, reportTotals, effectiveReportClient, reportStart, reportEnd, isAdmin);
     if (!result.success) setError(result.error);
+  }
+
+  async function handleExportExcel() {
+    try {
+      await exportReportExcel(reportRows, reportTotals, effectiveReportClient, reportStart, reportEnd, isAdmin);
+    } catch {
+      setError('Não consegui gerar o Excel. Tente novamente.');
+    }
   }
 
   function applyPreset(rangeFn) {
@@ -123,11 +131,11 @@ export default function Relatorio({ profile, isAdmin, onNavigate, onLogout }) {
               style={{ background: ORANGE, color: '#fff', padding: '9px 16px', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
               <FileText size={14} /> PDF
             </button>
-            <button className="cx-btn" onClick={() => exportReportExcel(reportRows, reportTotals, effectiveReportClient, reportEnd)}
+            <button className="cx-btn" onClick={handleExportExcel}
               style={{ background: '#fff', border: `1px solid ${LINE}`, padding: '9px 14px', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
               <Download size={14} /> Excel
             </button>
-            <button className="cx-btn" onClick={() => exportReportCSV(reportRows, reportTotals, effectiveReportClient, reportEnd)}
+            <button className="cx-btn" onClick={() => exportReportCSV(reportRows, reportTotals, effectiveReportClient, reportStart, reportEnd, isAdmin)}
               style={{ background: '#fff', border: `1px solid ${LINE}`, padding: '9px 14px', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
               <Download size={14} /> CSV
             </button>
@@ -184,6 +192,8 @@ export default function Relatorio({ profile, isAdmin, onNavigate, onLogout }) {
                     <th>Impressora</th>
                     <th>Número de série</th>
                     <th>Localização</th>
+                    <th style={{ textAlign: 'right' }}>Contador inicial</th>
+                    <th style={{ textAlign: 'right' }}>Contador final</th>
                     <th style={{ textAlign: 'right' }}>Total de impressões</th>
                   </tr>
                 </thead>
@@ -194,13 +204,19 @@ export default function Relatorio({ profile, isAdmin, onNavigate, onLogout }) {
                       <td>{r.modelo || '—'}</td>
                       <td className="mono">{r.id}</td>
                       <td>{r.local || '—'}</td>
+                      <td className="mono" style={{ textAlign: 'right', color: MUTED }}>
+                        {r.iniPB !== null ? r.iniPB.toLocaleString('pt-BR') : '—'}
+                      </td>
+                      <td className="mono" style={{ textAlign: 'right', color: MUTED }}>
+                        {r.finPB !== null ? r.finPB.toLocaleString('pt-BR') : '—'}
+                      </td>
                       <td className="mono" style={{ textAlign: 'right', fontWeight: 600 }}>
                         {r.totalPB !== null ? r.totalPB.toLocaleString('pt-BR') : '—'}
                       </td>
                     </tr>
                   ))}
                   <tr style={{ background: '#FCE9D8' }}>
-                    <td colSpan={4} style={{ fontWeight: 700, textAlign: 'right' }}>Total geral de impressões</td>
+                    <td colSpan={6} style={{ fontWeight: 700, textAlign: 'right' }}>Total geral de impressões</td>
                     <td className="mono" style={{ textAlign: 'right', fontWeight: 700, color: '#C25F09' }}>
                       {reportTotals.pb.toLocaleString('pt-BR')}
                     </td>

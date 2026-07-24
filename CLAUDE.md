@@ -36,7 +36,8 @@ parque total visível pela API é de ~2.096 impressoras de todos os clientes que
 atende, não só os da Cross. Por isso o escopo da sincronização (ver "Fluxo de dados")
 precisa ficar estritamente restrito ao que a Cross cadastrou, nunca ao parque inteiro.
 Atende hoje **um único contrato**: Fundo Municipal de Saúde de São Gabriel da Palha,
-contrato Cross nº 049/2026, 35 impressoras HP. Gera relatório de impressões por
+contrato Cross nº 049/2026, 37 impressoras HP (35 originais + 2 adicionadas em
+24/07/2026: `BRBSTBD09D`, `BRBSTBD097`). Gera relatório de impressões por
 período (total = contador final − contador inicial). Dois papéis de acesso: **admin**
 (interno Cross, vê e importa dados de todos os clientes) e **cliente** (externo,
 leitura somente do próprio contrato).
@@ -134,9 +135,16 @@ decorativo da tela de login, `src/components/Globe.jsx`). Deploy: build estátic
 (`npm run build` → `dist/`) publicado no HostGator via upload manual (cPanel/FTP) — ver
 `README.md` seção de deploy e `MANUTENCAO.md`.
 
-**Números de referência — contrato Saúde São Gabriel da Palha** (validar a importação
+**Nome do cliente** (valor exato de `printers.cliente` e `profiles.cliente_associado`,
+usado pelo RLS): `Fundo Municipal de Saúde de São Gabriel da Palha`. Renomeado em
+24/07/2026 (era `Saúde São Gabriel da Palha`) nas duas tabelas juntas + `DEFAULT_CLIENT`
+em `importPrinters.js`. `departamento` = `Secretaria Municipal de Saúde` em todas;
+`local` = ponto físico exato (ex: "ESF São Sebastião", "CAPS") — coluna `departamento`
+adicionada na migration `0004`, separada de `local` (antes os dois ficavam juntos).
+
+**Números de referência — contrato São Gabriel da Palha** (validar a importação
 da planilha contra isso — pendência 3 abaixo, ainda não conferido contra o sistema):
-- 35 impressoras no contrato.
+- 35 impressoras no contrato original (+2 novas = 37 no total desde 24/07/2026).
 - 124.358 páginas no período 02/05/2026–23/07/2026 (arquivo trimestral direto do
   PrintWayy, número confiável pra esse intervalo).
 - Mensal, já corrigido pra fronteiras não-sobrepostas: maio 49.309, junho 49.729,
@@ -172,8 +180,11 @@ da planilha contra isso — pendência 3 abaixo, ainda não conferido contra o s
    124.358 do trimestral oficial, 13 páginas de diferença), mas uma consulta que pegue
    exatamente um mês isolado (ex.: só junho) pode aparecer um pouco abaixo do PDF
    daquele mês especificamente, porque o valor salvo na fronteira compartilhada é o
-   "fin" do período anterior, não o "ini" do seguinte. `local` de todas ficou
-   "Secretaria Municipal de Saúde" (não tinha localização mais específica no PDF).
+   "fin" do período anterior, não o "ini" do seguinte. ~~`local` de todas ficou
+   "Secretaria Municipal de Saúde"~~ — corrigido em 24/07/2026: usuário mandou a planilha
+   do PrintWayy com a coluna "Observação" (ponto físico exato); `local` de cada uma
+   virou o valor real (ex: "ESF São Sebastião", "CAPS", "UBS Progresso") e
+   "Secretaria Municipal de Saúde" moveu pra nova coluna `departamento` (migration 0004).
 4. ~~Rodar "Sincronizar agora" e conferir a resposta~~ — feito (23/07/2026), com dado
    real: `{"totalRegistered":35,"notFoundInPrintwayy":0,"ambiguous":0,"synced":35,
    "failed":0,"errors":[]}` — bateu exatamente o esperado. **Bug real encontrado e

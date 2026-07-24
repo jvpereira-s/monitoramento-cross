@@ -3,14 +3,14 @@ import { X, AlertTriangle } from 'lucide-react';
 import { saveImport } from '../lib/db';
 import { MUTED, TEAL, DANGER, LINE, ORANGE } from '../lib/theme';
 
-const EMPTY_FORM = { id: '', cliente: '', modelo: '', ip: '', local: '', conexao: '' };
+const EMPTY_FORM = { id: '', cliente: '', modelo: '', ip: '', departamento: '', local: '', conexao: '' };
 
 // Cadastro manual de uma impressora só (serial + cliente, resto opcional) — cobre o
 // caso de registrar um cliente novo sem planilha histórica do PrintWayy. Reaproveita
 // saveImport() (mesma função do import de planilha) com readings=[] — sem leitura
 // ainda, só o cadastro em `printers`; a sincronização por API ou um import posterior
 // preenchem o histórico depois.
-export default function RegisterPrinterModal({ existingPrinters, knownClients, onClose, onSaved }) {
+export default function RegisterPrinterModal({ existingPrinters, knownClients, knownDepartamentos = [], onClose, onSaved }) {
   const [form, setForm] = useState(EMPTY_FORM);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -30,6 +30,7 @@ export default function RegisterPrinterModal({ existingPrinters, knownClients, o
     const printer = { id: trimmedId, cliente: form.cliente.trim() };
     if (form.modelo.trim()) printer.modelo = form.modelo.trim();
     if (form.ip.trim()) printer.ip = form.ip.trim();
+    if (form.departamento.trim()) printer.departamento = form.departamento.trim();
     if (form.local.trim()) printer.local = form.local.trim();
     if (form.conexao.trim()) printer.conexao = form.conexao.trim();
 
@@ -110,14 +111,22 @@ export default function RegisterPrinterModal({ existingPrinters, knownClients, o
                 onChange={(e) => setForm((f) => ({ ...f, ip: e.target.value }))} />
             </div>
             <div>
-              <label style={{ fontSize: 12, color: MUTED, display: 'block', marginBottom: 4 }}>Local</label>
-              <input className="cx-input" style={{ width: '100%' }} value={form.local}
-                onChange={(e) => setForm((f) => ({ ...f, local: e.target.value }))} />
+              <label style={{ fontSize: 12, color: MUTED, display: 'block', marginBottom: 4 }}>Departamento</label>
+              <input className="cx-input" style={{ width: '100%' }} value={form.departamento} list="cx-known-departamentos"
+                onChange={(e) => setForm((f) => ({ ...f, departamento: e.target.value }))} />
+              <datalist id="cx-known-departamentos">
+                {knownDepartamentos.map((d) => <option key={d} value={d} />)}
+              </datalist>
             </div>
             <div>
               <label style={{ fontSize: 12, color: MUTED, display: 'block', marginBottom: 4 }}>Conexão</label>
               <input className="cx-input" style={{ width: '100%' }} value={form.conexao}
                 onChange={(e) => setForm((f) => ({ ...f, conexao: e.target.value }))} />
+            </div>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label style={{ fontSize: 12, color: MUTED, display: 'block', marginBottom: 4 }}>Local (ponto físico exato)</label>
+              <input className="cx-input" style={{ width: '100%' }} value={form.local} placeholder="Ex: ESF São Sebastião, CAPS, Recepção"
+                onChange={(e) => setForm((f) => ({ ...f, local: e.target.value }))} />
             </div>
           </div>
         </div>

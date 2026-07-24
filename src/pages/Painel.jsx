@@ -7,6 +7,7 @@ import {
 import AppShell from '../components/AppShell';
 import MiniDonut from '../components/MiniDonut';
 import StatusDot from '../components/StatusDot';
+import BarChartTopConsumo from '../components/BarChartTopConsumo';
 import PrinterDetailModal from '../components/PrinterDetailModal';
 import RegisterPrinterModal from '../components/RegisterPrinterModal';
 import { fetchPrinters, fetchReadings, saveImport } from '../lib/db';
@@ -17,6 +18,7 @@ import {
   computePrinterStats, computeKpis, computeLastSync, computeOfflineList, computeSemMonitoramentoList,
   computeConexaoData,
 } from '../lib/printerStats';
+import { computeMonthlyTotals, computeTopConsumo, computeTopClientes } from '../lib/report';
 import { ORANGE, ORANGE_DEEP, TEAL, INK, MUTED, DANGER, LINE } from '../lib/theme';
 
 export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
@@ -64,6 +66,11 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
     return ['todos', ...Array.from(set)];
   }, [stats]);
 
+  const knownDepartamentos = useMemo(
+    () => Array.from(new Set(printers.map((p) => p.departamento).filter(Boolean))),
+    [printers]
+  );
+
   // Filtro de cliente (admin) vale pra tudo — KPIs, gráficos e tabela — não só a tabela.
   // Em "todos" (padrão), volta a somar o parque inteiro.
   const scopedStats = useMemo(() => (
@@ -76,6 +83,12 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
   const offlineList = useMemo(() => computeOfflineList(scopedStats), [scopedStats]);
   const semMonitoramentoList = useMemo(() => computeSemMonitoramentoList(scopedStats), [scopedStats]);
   const conexaoData = useMemo(() => computeConexaoData(scopedStats), [scopedStats]);
+  const monthlyTotals = useMemo(() => computeMonthlyTotals(scopedStats, readings), [scopedStats, readings]);
+  const topConsumo = useMemo(() => computeTopConsumo(scopedStats, readings), [scopedStats, readings]);
+  // "Todos os clientes" mistura equipamentos de contratos diferentes — rankear por
+  // impressora aí não diz muito. Agrupa por cliente em vez disso.
+  const showTopClientes = isAdmin && clientFilter === 'todos';
+  const topClientes = useMemo(() => computeTopClientes(stats, readings), [stats, readings]);
 
   const commPieData = [
     { name: 'Comunicando', value: kpis.online, color: TEAL },
@@ -115,9 +128,17 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
   }, [filtered, sortBy, sortDir]);
 
   function exportCSV() {
-    const headers = ['Local', 'Modelo', 'Conexao', 'IP', ...(isAdmin ? ['Cliente'] : []), 'Status', 'UltimaComunicacao', 'DiasSemComunicar', ...(hasCounters ? ['Contador'] : [])];
+    const companyRows = [
+      ['CROSS SOLUÇÕES'],
+      ['Inovações contínuas na computação e na prestação de serviços'],
+      ['CNPJ 65.404.622/0001-20 · Inscrição Estadual 084.818.99-9'],
+      ['Av. Raphael Barbosa Brhaim, 847, Guriri Norte, São Mateus – ES · (27) 99693-8793 · crosssolucoes@outlook.com'],
+      [`Inventário de impressoras — gerado em ${new Date().toLocaleDateString('pt-BR')}`],
+      [],
+    ];
+    const headers = ['Local', 'Departamento', 'Modelo', 'Conexao', 'IP', ...(isAdmin ? ['Cliente'] : []), 'Status', 'UltimaComunicacao', 'DiasSemComunicar', ...(hasCounters ? ['Contador'] : [])];
     const rows = sorted.map((p) => [
-      p.local || p.id, p.modelo || '', p.conexao || '', p.ip || '',
+      p.local || p.id, p.departamento || '', p.modelo || '', p.conexao || '', p.ip || '',
       ...(isAdmin ? [p.cliente || ''] : []),
       p.comm, p.lastReading ? p.lastReading.data : '', p.daysSince ?? '',
       ...(hasCounters ? [p.contador ?? ''] : []),
@@ -127,7 +148,7 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
       return /[",;\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
     };
     const BOM = String.fromCharCode(0xfeff);
-    const csv = BOM + [headers, ...rows].map((r) => r.map(escape).join(';')).join('\r\n');
+    const csv = BOM + [...companyRows, headers, ...rows].map((r) => r.map(escape).join(';')).join('\r\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -389,7 +410,45 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
                 {kpis.semMonitoramento}
               </div>
             </div>
+
+            <div style={{ background: '#fff', border: `1px solid ${LINE}`, borderRadius: 10, padding: '14px 16px' }}>
+              <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: MUTED }}>
+                Páginas mês passado
+              </div>
+              <div className="mono" style={{ fontSize: 26, fontWeight: 600, color: INK, marginTop: 4 }}>
+                {monthlyTotals.lastMonth.toLocaleString('pt-BR')}
+              </div>
+              <div style={{ fontSize: 10.5, color: '#9CA3AF', marginTop: 2 }}>Mês fechado</div>
+            </div>
+
+            <div style={{ background: '#fff', border: `1px solid ${LINE}`, borderRadius: 10, padding: '14px 16px' }}>
+              <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: MUTED }}>
+                Páginas este mês
+              </div>
+              <div className="mono" style={{ fontSize: 26, fontWeight: 600, color: TEAL, marginTop: 4 }}>
+                {monthlyTotals.currentMonth.toLocaleString('pt-BR')}
+              </div>
+              <div style={{ fontSize: 10.5, color: '#9CA3AF', marginTop: 2 }}>Em andamento</div>
+            </div>
           </div>
+
+          {hasCounters && (showTopClientes ? topClientes.length > 0 : topConsumo.length > 0) && (
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ background: '#fff', border: `1px solid ${LINE}`, borderRadius: 10, padding: 16 }}>
+                {showTopClientes ? (
+                  <>
+                    <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 8, color: MUTED }}>Clientes que mais imprimem no mês atual (páginas)</div>
+                    <BarChartTopConsumo data={topClientes} />
+                  </>
+                ) : (
+                  <>
+                    <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 8, color: MUTED }}>Maior consumo no mês atual (páginas)</div>
+                    <BarChartTopConsumo data={topConsumo} />
+                  </>
+                )}
+              </div>
+            </div>
+          )}
 
           <div style={{ marginBottom: 20 }}>
             <div style={{ background: '#fff', border: `1px solid ${LINE}`, borderRadius: 10, padding: 16 }}>
@@ -491,8 +550,15 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
                 {sorted.map((p) => (
                   <tr key={p.id} onClick={() => setSelectedPrinter(p)} style={{ cursor: 'pointer' }}>
                     <td><StatusDot status={p.comm} /></td>
-                    <td style={{ fontWeight: 600, maxWidth: 220, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={p.local}>
-                      {p.local || p.id}
+                    <td style={{ maxWidth: 220 }} title={p.departamento ? `${p.local || p.id} — ${p.departamento}` : p.local}>
+                      <div style={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {p.local || p.id}
+                      </div>
+                      {p.departamento && (
+                        <div style={{ fontSize: 10.5, color: MUTED, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {p.departamento}
+                        </div>
+                      )}
                     </td>
                     <td>{p.modelo || '—'}</td>
                     <td>{p.conexao || '—'}</td>
@@ -554,6 +620,7 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
       <RegisterPrinterModal
         existingPrinters={printers}
         knownClients={clients.filter((c) => c !== 'todos')}
+        knownDepartamentos={knownDepartamentos}
         onClose={() => setShowRegisterModal(false)}
         onSaved={async (id) => {
           setShowRegisterModal(false);

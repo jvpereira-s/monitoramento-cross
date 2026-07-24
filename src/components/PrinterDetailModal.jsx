@@ -33,8 +33,16 @@ export default function PrinterDetailModal({ printer, readings, isAdmin, onClose
   const reportTotals = useMemo(() => computeReportTotals(reportRows), [reportRows]);
 
   function handlePDF() {
-    const result = exportReportPDF(reportRows, reportTotals, printer.cliente, start, end);
+    const result = exportReportPDF(reportRows, reportTotals, printer.cliente, start, end, isAdmin);
     if (!result.success) setError(result.error);
+  }
+
+  async function handleExcel() {
+    try {
+      await exportReportExcel(reportRows, reportTotals, printer.cliente, start, end, isAdmin);
+    } catch {
+      setError('Não consegui gerar o Excel. Tente novamente.');
+    }
   }
 
   return (
@@ -67,6 +75,7 @@ export default function PrinterDetailModal({ printer, readings, isAdmin, onClose
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 16px', fontSize: 13, marginBottom: 18 }}>
           <div><span style={{ color: MUTED }}>Local:</span> {printer.local || '—'}</div>
+          <div><span style={{ color: MUTED }}>Departamento:</span> {printer.departamento || '—'}</div>
           {isAdmin && <div><span style={{ color: MUTED }}>Cliente:</span> {printer.cliente}</div>}
           <div><span style={{ color: MUTED }}>Conexão:</span> {printer.conexao || '—'}</div>
           <div><span style={{ color: MUTED }}>IP:</span> <span className="mono">{printer.ip || '—'}</span></div>
@@ -119,11 +128,11 @@ export default function PrinterDetailModal({ printer, readings, isAdmin, onClose
               style={{ background: ORANGE, color: '#fff', padding: '7px 12px', fontSize: 12.5, display: 'flex', alignItems: 'center', gap: 6 }}>
               <FileText size={13} /> PDF
             </button>
-            <button type="button" className="cx-btn" onClick={() => exportReportExcel(reportRows, reportTotals, printer.cliente, end)}
+            <button type="button" className="cx-btn" onClick={handleExcel}
               style={{ background: '#fff', border: `1px solid ${LINE}`, padding: '7px 12px', fontSize: 12.5, display: 'flex', alignItems: 'center', gap: 6 }}>
               <Download size={13} /> Excel
             </button>
-            <button type="button" className="cx-btn" onClick={() => exportReportCSV(reportRows, reportTotals, printer.cliente, end)}
+            <button type="button" className="cx-btn" onClick={() => exportReportCSV(reportRows, reportTotals, printer.cliente, start, end, isAdmin)}
               style={{ background: '#fff', border: `1px solid ${LINE}`, padding: '7px 12px', fontSize: 12.5, display: 'flex', alignItems: 'center', gap: 6 }}>
               <Download size={13} /> CSV
             </button>

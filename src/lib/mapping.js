@@ -9,7 +9,8 @@ export const FIELDS = [
   { key: 'modelo', label: 'Modelo', required: false },
   { key: 'serie', label: 'Número de série', required: false },
   { key: 'cliente', label: 'Cliente (nome curto, não o contrato)', required: false },
-  { key: 'local', label: 'Local / localização', required: false },
+  { key: 'departamento', label: 'Departamento (ex: Secretaria Municipal de Saúde)', required: false },
+  { key: 'local', label: 'Local (ponto físico exato / observação)', required: false },
   { key: 'conexao', label: 'Tipo de conexão', required: false },
   { key: 'dataLeitura', label: 'Última comunicação / data', required: false },
   { key: 'statusComunicacao', label: 'Situação / status', required: false },
@@ -20,7 +21,11 @@ const GUESS_DICT = {
   serie: ['número de série', 'numero de serie', 'série', 'serie', 'serial'],
   modelo: ['modelo', 'model'],
   cliente: ['cliente', 'empresa', 'customer'],
-  local: ['localização', 'localizacao', 'observação', 'observacao', 'ponto de instalação', 'ponto de instalacao', 'local', 'setor', 'departamento'],
+  // `local` = ponto físico exato do equipamento; `departamento` = unidade administrativa.
+  // A ordem no `order` abaixo resolve `departamento` antes de `local`, então uma planilha
+  // com as duas colunas ("Departamento" + "Observação") mapeia cada uma pro campo certo.
+  departamento: ['departamento', 'setor', 'divisão', 'divisao', 'unidade'],
+  local: ['observação', 'observacao', 'ponto de instalação', 'ponto de instalacao', 'localização', 'localizacao', 'local'],
   conexao: ['tipo de conexão', 'tipo de conexao', 'conexão', 'conexao'],
   contadorPBIni: ['cont. ini. p&b', 'cont ini p&b', 'cont ini pb', 'contador p&b inicial'],
   contadorPB: ['cont. fin. p&b', 'cont fin p&b', 'cont fin pb', 'total p&b', 'total pb', 'contador p&b'],
@@ -40,7 +45,7 @@ export function guessMapping(headers) {
   const norm = (s) => s.toLowerCase().normalize('NFD').replace(new RegExp('[\\u0300-\\u036f]', 'g'), '');
   const normHeaders = headers.map((h) => ({ raw: h, n: norm(h) }));
   // Ordem de resolução: campos mais específicos/confiáveis primeiro.
-  const order = ['ip', 'serie', 'contadorPBIni', 'contadorPB', 'contadorColorIni', 'contadorColor', 'contador', 'dataLeitura', 'statusComunicacao', 'conexao', 'modelo', 'cliente', 'local', 'identificador'];
+  const order = ['ip', 'serie', 'contadorPBIni', 'contadorPB', 'contadorColorIni', 'contadorColor', 'contador', 'dataLeitura', 'statusComunicacao', 'conexao', 'modelo', 'cliente', 'departamento', 'local', 'identificador'];
   order.forEach((key) => {
     const terms = GUESS_DICT[key] || [];
     let match = null;

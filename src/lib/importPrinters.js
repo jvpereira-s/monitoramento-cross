@@ -1,6 +1,6 @@
 import { normalizeDate } from './mapping';
 
-export const DEFAULT_CLIENT = 'Saúde São Gabriel da Palha';
+export const DEFAULT_CLIENT = 'Fundo Municipal de Saúde de São Gabriel da Palha';
 
 function parseNum(raw) {
   if (raw === undefined || raw === null || raw === '') return null;
@@ -45,6 +45,7 @@ export function buildImportPayload({ rawRows, mapping, manualDate, manualDateIni
     const printer = { id, cliente, ...printersById.get(id) };
     if (mapping.ip && row[mapping.ip]) printer.ip = String(row[mapping.ip]).trim();
     if (mapping.modelo && row[mapping.modelo]) printer.modelo = String(row[mapping.modelo]).trim();
+    if (mapping.departamento && row[mapping.departamento]) printer.departamento = String(row[mapping.departamento]).trim();
     if (mapping.local && row[mapping.local]) printer.local = String(row[mapping.local]).trim();
     if (mapping.conexao && row[mapping.conexao]) printer.conexao = String(row[mapping.conexao]).trim();
     printersById.set(id, printer);

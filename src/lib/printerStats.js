@@ -50,8 +50,12 @@ export function computeLastSync(stats, readings) {
     .map((r) => r.imported_at);
   if (!dates.length) return null;
   const latest = dates.sort().slice(-1)[0];
-  const daysAgo = Math.floor((Date.now() - new Date(latest).getTime()) / 86400000);
-  return { date: latest.slice(0, 10), daysAgo };
+  const latestDate = new Date(latest);
+  const daysAgo = Math.floor((Date.now() - latestDate.getTime()) / 86400000);
+  // Fixado em America/Sao_Paulo (não o fuso do navegador) pra bater com o horário do
+  // cron (07h-18h BRT, ver CLAUDE.md) mesmo se alguém abrir o painel de outro fuso.
+  const time = latestDate.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' });
+  return { date: latest.slice(0, 10), time, daysAgo };
 }
 
 export function computeOfflineList(stats) {
