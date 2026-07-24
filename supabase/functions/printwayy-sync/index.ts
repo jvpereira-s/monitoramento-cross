@@ -170,13 +170,15 @@ async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T)
 // só atualizar). Passar o valor já existente de volta é o jeito de satisfazer a
 // constraint sem de fato mudar o dado.
 //
-// `local` também propositalmente fora do payload — mas por um motivo diferente de
-// `cliente`: essa coluna é nullable, então omitir a chave não esbarra no problema do
-// not null acima, só faz o upsert não tocar nela mesmo (comportamento que queremos).
-// `local` é o setor/departamento (ex: "Recepção", "Farmácia"), dado nosso, mantido
-// pelo admin — não tem equivalente confiável na API: `installationPoint` é o nome
-// técnico da máquina ligada à impressora (ex: "PC-RECEPCAO01"), não o nome do setor
-// pro usuário. Escrever isso por cima do setor real já causou confusão uma vez.
+// `local` e `departamento` também propositalmente fora do payload — mas por um motivo
+// diferente de `cliente`: as duas são nullable, então omitir a chave não esbarra no
+// problema do not null acima, só faz o upsert não tocar nelas mesmo (comportamento que
+// queremos). `local` é o ponto físico exato (ex: "ESF São Sebastião", "Recepção") e
+// `departamento` é a unidade administrativa (ex: "Secretaria Municipal de Saúde") —
+// ambos dado nosso, mantidos pelo admin, sem equivalente confiável na API:
+// `installationPoint` é o nome técnico da máquina ligada à impressora (ex:
+// "PC-RECEPCAO01"), não o nome do local/setor pro usuário. Escrever isso por cima do
+// dado real já causou confusão uma vez.
 function toPrinterRow(p: PrintwayyPrinter, cliente: string) {
   return {
     id: p.serialNumber.trim(),
@@ -200,6 +202,12 @@ function toReadingRow(p: PrintwayyPrinter, counters: CounterEntry[], today: stri
     contador_pb: pb,
     contador_color: color,
     status: statusText,
+    // Precisa estar no payload: o upsert é ON CONFLICT (printer_id, data) DO UPDATE e,
+    // como o sync grava sempre a MESMA data (hoje), toda sync depois da primeira do dia
+    // cai no UPDATE. Sem `imported_at` aqui, o timestamp ficava congelado no horário do
+    // primeiro sync do dia (o default now() só vale no INSERT), e a badge "Atualizado
+    // às HH:MMh" (max(imported_at) em computeLastSync) travava no 07h do primeiro cron.
+    imported_at: new Date().toISOString(),
   };
 }
 
