@@ -7,7 +7,6 @@ import {
 import AppShell from '../components/AppShell';
 import MiniDonut from '../components/MiniDonut';
 import StatusDot from '../components/StatusDot';
-import BarChartTopConsumo from '../components/BarChartTopConsumo';
 import PrinterDetailModal from '../components/PrinterDetailModal';
 import RegisterPrinterModal from '../components/RegisterPrinterModal';
 import { fetchPrinters, fetchReadings, saveImport } from '../lib/db';
@@ -16,7 +15,7 @@ import { buildImportPayload } from '../lib/importPrinters';
 import { syncPrintwayy } from '../lib/printwayySync';
 import {
   computePrinterStats, computeKpis, computeLastSync, computeOfflineList, computeSemMonitoramentoList,
-  computeConexaoData, computeTopConsumo, computeTopClientes,
+  computeConexaoData,
 } from '../lib/printerStats';
 import { ORANGE, ORANGE_DEEP, TEAL, INK, MUTED, DANGER, LINE } from '../lib/theme';
 
@@ -77,11 +76,6 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
   const offlineList = useMemo(() => computeOfflineList(scopedStats), [scopedStats]);
   const semMonitoramentoList = useMemo(() => computeSemMonitoramentoList(scopedStats), [scopedStats]);
   const conexaoData = useMemo(() => computeConexaoData(scopedStats), [scopedStats]);
-  const topConsumo = useMemo(() => computeTopConsumo(scopedStats), [scopedStats]);
-  // "Todos os clientes" mistura equipamentos de contratos diferentes — rankear por
-  // impressora aí não diz muito. Agrupa por cliente em vez disso.
-  const showTopClientes = isAdmin && clientFilter === 'todos';
-  const topClientes = useMemo(() => computeTopClientes(stats), [stats]);
 
   const commPieData = [
     { name: 'Comunicando', value: kpis.online, color: TEAL },
@@ -121,12 +115,12 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
   }, [filtered, sortBy, sortDir]);
 
   function exportCSV() {
-    const headers = ['Local', 'Modelo', 'Conexao', 'IP', ...(isAdmin ? ['Cliente'] : []), 'Status', 'UltimaComunicacao', 'DiasSemComunicar', ...(hasCounters ? ['Contador', 'DeltaPeriodo'] : [])];
+    const headers = ['Local', 'Modelo', 'Conexao', 'IP', ...(isAdmin ? ['Cliente'] : []), 'Status', 'UltimaComunicacao', 'DiasSemComunicar', ...(hasCounters ? ['Contador'] : [])];
     const rows = sorted.map((p) => [
       p.local || p.id, p.modelo || '', p.conexao || '', p.ip || '',
       ...(isAdmin ? [p.cliente || ''] : []),
       p.comm, p.lastReading ? p.lastReading.data : '', p.daysSince ?? '',
-      ...(hasCounters ? [p.contador ?? '', p.delta ?? ''] : []),
+      ...(hasCounters ? [p.contador ?? ''] : []),
     ]);
     const escape = (v) => {
       const s = String(v ?? '');
@@ -392,55 +386,41 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
 
             <div style={{ background: '#fff', border: `1px solid ${LINE}`, borderRadius: 10, padding: '14px 16px' }}>
               <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: MUTED }}>
-                {hasCounters ? 'Páginas no período' : 'Taxa comunicando'}
+                Taxa comunicando
               </div>
               <div className="mono" style={{ fontSize: 26, fontWeight: 600, color: ORANGE_DEEP, marginTop: 4 }}>
-                {hasCounters ? kpis.totalPaginasPeriodo.toLocaleString('pt-BR') : (kpis.total ? Math.round((kpis.online / kpis.total) * 100) + '%' : '—')}
+                {kpis.total ? Math.round((kpis.online / kpis.total) * 100) + '%' : '—'}
               </div>
             </div>
           </div>
 
           <div style={{ marginBottom: 20 }}>
             <div style={{ background: '#fff', border: `1px solid ${LINE}`, borderRadius: 10, padding: 16 }}>
-              {hasCounters && showTopClientes ? (
-                <>
-                  <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 8, color: MUTED }}>Clientes que mais imprimem no período (páginas)</div>
-                  <BarChartTopConsumo data={topClientes} />
-                </>
-              ) : hasCounters ? (
-                <>
-                  <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 8, color: MUTED }}>Maior consumo no período (páginas)</div>
-                  <BarChartTopConsumo data={topConsumo} />
-                </>
+              <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 4, color: MUTED }}>Impressoras sem comunicação — há quanto tempo</div>
+              <div style={{ fontSize: 11.5, color: '#9CA3AF', marginBottom: 10 }}>
+                Ordenadas da mais tempo parada para a mais recente. Conexão USB depende do PC host ligado.
+              </div>
+              {offlineList.length === 0 ? (
+                <div style={{ padding: '30px 0', textAlign: 'center', color: TEAL, fontSize: 13.5 }}>Todas comunicando. Nenhuma parada.</div>
               ) : (
-                <>
-                  <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 4, color: MUTED }}>Impressoras sem comunicação — há quanto tempo</div>
-                  <div style={{ fontSize: 11.5, color: '#9CA3AF', marginBottom: 10 }}>
-                    Ordenadas da mais tempo parada para a mais recente. Conexão USB depende do PC host ligado.
-                  </div>
-                  {offlineList.length === 0 ? (
-                    <div style={{ padding: '30px 0', textAlign: 'center', color: TEAL, fontSize: 13.5 }}>Todas comunicando. Nenhuma parada.</div>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      {offlineList.map((p) => {
-                        const maxDays = offlineList[0].daysSince || 1;
-                        const pct = Math.max(6, Math.round(((p.daysSince || 0) / maxDays) * 100));
-                        return (
-                          <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
-                            <div style={{ width: 220, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={p.local}>
-                              {p.local || p.id}
-                            </div>
-                            <div style={{ flex: 1, background: '#F5F0EE', borderRadius: 4, height: 16, position: 'relative' }}>
-                              <div style={{ width: pct + '%', background: DANGER, height: '100%', borderRadius: 4, opacity: 0.85 }} />
-                            </div>
-                            <div className="mono" style={{ width: 62, textAlign: 'right', color: DANGER }}>{p.daysSince}d</div>
-                            <div style={{ width: 44, fontSize: 10.5, color: MUTED }}>{p.conexao}</div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {offlineList.map((p) => {
+                    const maxDays = offlineList[0].daysSince || 1;
+                    const pct = Math.max(6, Math.round(((p.daysSince || 0) / maxDays) * 100));
+                    return (
+                      <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+                        <div style={{ width: 220, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={p.local}>
+                          {p.local || p.id}
+                        </div>
+                        <div style={{ flex: 1, background: '#F5F0EE', borderRadius: 4, height: 16, position: 'relative' }}>
+                          <div style={{ width: pct + '%', background: DANGER, height: '100%', borderRadius: 4, opacity: 0.85 }} />
+                        </div>
+                        <div className="mono" style={{ width: 62, textAlign: 'right', color: DANGER }}>{p.daysSince}d</div>
+                        <div style={{ width: 44, fontSize: 10.5, color: MUTED }}>{p.conexao}</div>
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </div>
           </div>
@@ -507,7 +487,7 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
                   <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('dias')}>
                     Última comunicação {sortBy === 'dias' && (sortDir === 'asc' ? '▲' : '▼')}
                   </th>
-                  {hasCounters && <th>Contador</th>}{hasCounters && <th>Δ período</th>}
+                  {hasCounters && <th>Contador</th>}
                 </tr>
               </thead>
               <tbody>
@@ -525,15 +505,10 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
                       {p.lastReading ? `${p.lastReading.data} (${p.daysSince}d)` : '—'}
                     </td>
                     {hasCounters && <td className="mono">{p.contador !== null ? p.contador.toLocaleString('pt-BR') : '—'}</td>}
-                    {hasCounters && (
-                      <td className="mono" style={{ color: p.delta > 0 ? INK : '#9CA3AF' }}>
-                        {p.delta !== null ? (p.delta > 0 ? '+' : '') + p.delta.toLocaleString('pt-BR') : '—'}
-                      </td>
-                    )}
                   </tr>
                 ))}
                 {filtered.length === 0 && (
-                  <tr><td colSpan={9} style={{ textAlign: 'center', color: '#9CA3AF', padding: 24 }}>
+                  <tr><td colSpan={8} style={{ textAlign: 'center', color: '#9CA3AF', padding: 24 }}>
                     Nenhuma impressora encontrada com esse filtro.
                   </td></tr>
                 )}
@@ -541,12 +516,12 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
             </table>
           </div>
 
-          <div style={{ marginTop: 14, fontSize: 12, color: '#9CA3AF', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <RefreshCw size={12} />
-            {hasCounters
-              ? 'Δ período compara a leitura mais recente com a anterior.'
-              : 'Este import não traz contador de páginas — a ferramenta está mostrando comunicação e inventário. Para consumo de páginas, exporte do PrintWayy um relatório que inclua a contagem.'}
-          </div>
+          {!hasCounters && (
+            <div style={{ marginTop: 14, fontSize: 12, color: '#9CA3AF', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <RefreshCw size={12} />
+              Este import não traz contador de páginas — a ferramenta está mostrando comunicação e inventário. Para consumo de páginas, exporte do PrintWayy um relatório que inclua a contagem.
+            </div>
+          )}
         </>
       )}
 

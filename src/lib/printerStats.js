@@ -13,8 +13,6 @@ export function computePrinterStats(printers, readings, commThreshold) {
       const last = list[list.length - 1];
       const withCounter = list.filter((r) => r.contador_pb !== null && r.contador_pb !== undefined);
       const lastC = withCounter[withCounter.length - 1];
-      const prevC = withCounter[withCounter.length - 2];
-      const delta = lastC && prevC ? lastC.contador_pb - prevC.contador_pb : null;
       const daysSince = last ? Math.floor((Date.now() - new Date(last.data).getTime()) / 86400000) : null;
 
       let comm = 'sem-dados';
@@ -31,7 +29,7 @@ export function computePrinterStats(printers, readings, commThreshold) {
         comm = 'sem-monitoramento';
       }
 
-      return { ...printer, lastReading: last, contador: lastC ? lastC.contador_pb : null, delta, daysSince, comm };
+      return { ...printer, lastReading: last, contador: lastC ? lastC.contador_pb : null, daysSince, comm };
     })
     .sort((a, b) => a.id.localeCompare(b.id));
 }
@@ -42,8 +40,7 @@ export function computeKpis(stats) {
   const offline = stats.filter((p) => p.comm === 'offline').length;
   const semMonitoramento = stats.filter((p) => p.comm === 'sem-monitoramento').length;
   const semDados = stats.filter((p) => p.comm === 'sem-dados').length;
-  const totalPaginasPeriodo = stats.reduce((sum, p) => sum + (p.delta && p.delta > 0 ? p.delta : 0), 0);
-  return { total, online, offline, semMonitoramento, semDados, totalPaginasPeriodo };
+  return { total, online, offline, semMonitoramento, semDados };
 }
 
 export function computeLastSync(stats, readings) {
@@ -72,27 +69,4 @@ export function computeConexaoData(stats) {
     counts[key] = (counts[key] || 0) + 1;
   });
   return Object.entries(counts).map(([name, value]) => ({ name, value }));
-}
-
-export function computeTopConsumo(stats) {
-  return stats
-    .filter((p) => p.delta && p.delta > 0)
-    .sort((a, b) => b.delta - a.delta)
-    .slice(0, 8)
-    .map((p) => ({ name: p.id.length > 14 ? p.id.slice(0, 13) + '…' : p.id, paginas: p.delta }));
-}
-
-// Mesma ideia do computeTopConsumo, mas agrupado por cliente em vez de por impressora —
-// usado na visão "todos os clientes", onde listar equipamento por S/N não faz sentido.
-export function computeTopClientes(stats) {
-  const totals = {};
-  stats.forEach((p) => {
-    if (p.delta && p.delta > 0) {
-      totals[p.cliente] = (totals[p.cliente] || 0) + p.delta;
-    }
-  });
-  return Object.entries(totals)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 8)
-    .map(([name, paginas]) => ({ name, paginas }));
 }
