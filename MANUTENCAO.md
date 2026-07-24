@@ -189,7 +189,8 @@ normalmente como plano B se a API ou a chave tiverem algum problema. Setup compl
   ele for revogado no PrintWayy), rode de novo `supabase secrets set
   PRINTWAYY_API_KEY=NOVO_TOKEN` — não precisa reimplantar a função.
 - **Como saber se o cron rodou**: painel do Supabase → **Cron Jobs** → histórico de
-  execuções da `printwayy-sync-diario` (mostra status e horário de cada run), ou via
+  execuções da `printwayy-sync-comercial` (roda de hora em hora, 07h–18h de Brasília —
+  mostra status e horário de cada run), ou via
   SQL Editor: `select * from net._http_response order by id desc limit 5;` (mostra
   `status_code` e corpo da resposta das últimas chamadas do `net.http_post`). Pra ver
   o que aconteceu dentro da função (quantas impressoras, quais falharam), **Edge

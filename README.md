@@ -172,8 +172,8 @@ impressora nova nem sobrescreve o campo "Cliente" (ver regra em `CLAUDE.md`, se�
    );
 
    select cron.schedule(
-     'printwayy-sync-diario',
-     '0 11 * * *', -- 11:00 UTC = 08:00 BRT (Brasil não tem mais DST desde 2019)
+     'printwayy-sync-comercial',
+     '0 10-21 * * *', -- 10:00-21:00 UTC = 07:00-18:00 BRT, de hora em hora (12x/dia)
      $$
      select net.http_post(
        url := 'https://SEU-PROJETO.supabase.co/functions/v1/printwayy-sync',
@@ -191,6 +191,13 @@ impressora nova nem sobrescreve o campo "Cliente" (ver regra em `CLAUDE.md`, se�
    aqui). Confirmar: `select * from cron.job;` (deve aparecer `active: true`) e, depois
    de qualquer execução, `select * from net._http_response order by id desc limit 5;`
    pra ver o `status_code` da última chamada.
+
+   **Pra mudar a frequência** depois: `select cron.unschedule('printwayy-sync-comercial');`
+   e rode o `cron.schedule(...)` de novo com outro nome/horário — o comando referencia
+   o mesmo secret do Vault, não precisa recriar o `vault.create_secret`. Sintaxe de
+   `hora-hora`: `0 H1-H2 * * *` roda no minuto 0 de cada hora entre H1 e H2 (UTC,
+   inclusive dos dois lados); ajuste H1/H2 subtraindo 3 do horário de Brasília
+   desejado.
 
    **Alternativa sem SQL**: Dashboard → Cron Jobs → New cron job → HTTP Request, mesma
    URL/Schedule/Body, header `Authorization: Bearer SUA_SERVICE_ROLE_KEY_NOVO_FORMATO`

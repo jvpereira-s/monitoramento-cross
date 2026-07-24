@@ -209,13 +209,18 @@ da planilha contra isso — pendência 3 abaixo, ainda não conferido contra o s
    (23/07/2026), configurado como secret. Assumindo que é o token regenerado (não o
    exposto) — não verificável remotamente, mas é o que foi informado.
 
-**Cron job `printwayy-sync-diario`**: configurado e validado ponta a ponta em
+**Cron job `printwayy-sync-comercial`**: configurado e validado ponta a ponta em
 23/07/2026 — não via Dashboard, via SQL direto (Management API do Supabase, com o
 access token pessoal do usuário como bearer, nunca persistido em arquivo). Sequência
 rodada: `create extension pg_cron`, `create extension pg_net`, a service_role (formato
 novo) guardada em `vault.create_secret(...)` (nunca em texto puro em SQL — só a chave
 do Vault, `printwayy_sync_service_key`, é referenciada), depois `cron.schedule(...)`
-chamando `net.http_post(...)` pra `printwayy-sync` às 11:00 UTC / 08:00 BRT todo dia.
+chamando `net.http_post(...)` pra `printwayy-sync`. Rodava 1x/dia (`0 11 * * *`,
+11:00 UTC/08:00 BRT) até o mesmo dia, quando o usuário pediu de hora em hora em
+horário comercial — reagendado pra `0 10-21 * * *` (10:00–21:00 UTC = 07:00–18:00
+BRT, 12 execuções/dia, no minuto 0 de cada hora). Job antigo removido via
+`cron.unschedule('printwayy-sync-diario')`, novo criado com nome diferente
+(`printwayy-sync-comercial`) pra refletir o horário.
 Teste manual do `net.http_post` (mesmo payload do cron) confirmado com `status_code:
 200` em `net._http_response`. Pra alterar/consultar: SQL Editor do Supabase,
 `select * from cron.job;` e `select * from net._http_response order by id desc;`.
