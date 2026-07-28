@@ -1,9 +1,14 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import CrossMark from '../components/CrossMark';
-import Globe from '../components/Globe';
 import { signInWithUsername } from '../lib/auth';
 import { ORANGE, TEAL, INK, MUTED, DANGER } from '../lib/theme';
+
+// Carregado sob demanda: three.js + d3-geo são a maior dependência do projeto e servem
+// só pra este enfeite. Com lazy, quem abre o sistema no celular (onde o globo nem
+// aparece) não baixa nada disso, e no desktop ele entra depois da tela de login já
+// utilizável — o formulário nunca espera pelo WebGL.
+const Globe = lazy(() => import('../components/Globe'));
 
 // Mesmo breakpoint de src/index.css (.cx-login-side { display: none }) — evita
 // inicializar WebGL/three.js e buscar o GeoJSON à toa quando o painel laranja nem
@@ -97,18 +102,22 @@ export default function Login() {
         </div>
         <div style={{ width: '100%', maxWidth: 280, aspectRatio: '1' }}>
           {showGlobe && (
-            <Globe
-              dots={GLOBE_DOTS}
-              fill="dots"
-              oceanColor="rgba(0,0,0,0)"
-              outlineColor="#ffffff"
-              outlineWidth={1}
-              showGrid={false}
-              markerConfig={GLOBE_MARKERS}
-              speed={1}
-              scale={8}
-              detail={4}
-            />
+            // fallback null: é decoração. Um "carregando" no lugar do globo chamaria mais
+            // atenção pra ausência dele do que a ausência em si.
+            <Suspense fallback={null}>
+              <Globe
+                dots={GLOBE_DOTS}
+                fill="dots"
+                oceanColor="rgba(0,0,0,0)"
+                outlineColor="#ffffff"
+                outlineWidth={1}
+                showGrid={false}
+                markerConfig={GLOBE_MARKERS}
+                speed={1}
+                scale={8}
+                detail={4}
+              />
+            </Suspense>
           )}
         </div>
         <div style={{ marginTop: 22, fontSize: 11.5, color: 'rgba(255,255,255,0.65)', textAlign: 'center' }}>
