@@ -12,6 +12,12 @@ dist
 dist-ssr
 *.local
 
+# Relatório de cobertura de teste — gerado por `npm run test:coverage`, regenerável
+coverage
+
+# Pacote de deploy — gerado a partir de dist/, regenerável a cada build
+deploy-hostgator.zip
+
 # Env
 .env
 .env.local
