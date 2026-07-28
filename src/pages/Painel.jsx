@@ -1,6 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import Papa from 'papaparse';
-import * as XLSX from 'xlsx';
 import {
   Upload, AlertTriangle, Search, Settings, FileSpreadsheet, X, RefreshCw, Download, ShieldCheck, Plus,
 } from 'lucide-react';
@@ -9,6 +7,7 @@ import MiniDonut from '../components/MiniDonut';
 import StatusDot from '../components/StatusDot';
 import BarChartTopConsumo from '../components/BarChartTopConsumo';
 import PrinterDetailModal from '../components/PrinterDetailModal';
+import PrinterIssueList from '../components/PrinterIssueList';
 import RegisterPrinterModal from '../components/RegisterPrinterModal';
 import { fetchPrinters, fetchReadings, saveImport } from '../lib/db';
 import { guessMapping, rowsFromSheet, FIELDS } from '../lib/mapping';
@@ -18,8 +17,24 @@ import {
   computePrinterStats, computeKpis, computeLastSync, computeOfflineList, computeSemMonitoramentoList,
   computeConexaoData,
 } from '../lib/printerStats';
-import { computeMonthlyTotals, computeTopConsumo, computeTopClientes } from '../lib/report';
-import { ORANGE, ORANGE_DEEP, TEAL, INK, MUTED, DANGER, LINE } from '../lib/theme';
+import { computeMonthlyTotals, computeTopConsumo, computeTopClientes, formatDateBR } from '../lib/report';
+import { ORANGE, TEAL, INK, MUTED, DANGER, LINE } from '../lib/theme';
+
+// Há quanto tempo a impressora está no estado. `offlineDays`/`zeroDays` contam desde o
+// primeiro dia da sequência, não desde a última leitura — como o sync grava uma leitura
+// por dia para toda impressora (inclusive as com problema), "dias desde a última leitura"
+// seria sempre 0 e não diria nada.
+function offlineLabel(p) {
+  if (p.offlineDays === null) return 'Sem comunicar';
+  if (p.offlineDays === 0) return 'Parou hoje';
+  return p.offlineDays === 1 ? 'Parada há 1 dia' : `Parada há ${p.offlineDays} dias`;
+}
+
+function semMonitoramentoLabel(p) {
+  if (p.zeroDays === null) return 'Contador zerado';
+  if (p.zeroDays === 0) return 'Zerou hoje';
+  return p.zeroDays === 1 ? 'Zerada há 1 dia' : `Zerada há ${p.zeroDays} dias`;
+}
 
 export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
   const [loading, setLoading] = useState(true);
@@ -83,6 +98,12 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
   const offlineList = useMemo(() => computeOfflineList(scopedStats), [scopedStats]);
   const semMonitoramentoList = useMemo(() => computeSemMonitoramentoList(scopedStats), [scopedStats]);
   const conexaoData = useMemo(() => computeConexaoData(scopedStats), [scopedStats]);
+  // Quantas impressoras realmente caem na regra de "dias sem leitura" — as que têm status
+  // explícito na última leitura são decididas por ele, não pelo ajuste.
+  const semStatusCount = useMemo(
+    () => scopedStats.filter((p) => p.lastReading && !p.lastReading.status).length,
+    [scopedStats]
+  );
   const monthlyTotals = useMemo(() => computeMonthlyTotals(scopedStats, readings), [scopedStats, readings]);
   const topConsumo = useMemo(() => computeTopConsumo(scopedStats, readings), [scopedStats, readings]);
   // "Todos os clientes" mistura equipamentos de contratos diferentes — rankear por
@@ -90,10 +111,12 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
   const showTopClientes = isAdmin && clientFilter === 'todos';
   const topClientes = useMemo(() => computeTopClientes(stats, readings), [stats, readings]);
 
+  // Rótulos curtos porque agora viram legenda visível ao lado da rosca, não só nome
+  // interno. Bucket zerado sai da lista — some da rosca e da legenda junto.
   const commPieData = [
     { name: 'Comunicando', value: kpis.online, color: TEAL },
     { name: 'Sem comunicação', value: kpis.offline, color: DANGER },
-    { name: 'Sem monitoramento de páginas', value: kpis.semMonitoramento, color: ORANGE },
+    { name: 'Sem monitoramento', value: kpis.semMonitoramento, color: ORANGE },
     { name: 'Sem dados ainda', value: kpis.semDados, color: '#9CA3AF' },
   ].filter((d) => d.value > 0);
 
@@ -160,12 +183,24 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
     URL.revokeObjectURL(url);
   }
 
-  function handleFileSelect(e) {
+  // Import dinâmico do papaparse/xlsx: as duas libs só servem pra ler planilha na
+  // importação, que é uma ação pontual de admin. Carregar sob demanda tira o peso delas
+  // do bundle inicial que todo usuário baixa só pra logar e ver o painel.
+  async function handleFileSelect(e) {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
     e.target.value = '';
     setError(null);
     const isCsv = file.name.toLowerCase().endsWith('.csv');
+    let Papa = null;
+    let XLSX = null;
+    try {
+      if (isCsv) ({ default: Papa } = await import('papaparse'));
+      else XLSX = await import('xlsx');
+    } catch {
+      setError('Não consegui carregar o leitor de planilhas. Verifique sua conexão e tente de novo.');
+      return;
+    }
     if (isCsv) {
       // header:false — o relatório do PrintWayy traz logo/título/dados do cliente antes
       // da linha real de colunas, então lemos tudo como array bruto e deixamos
@@ -288,13 +323,27 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
 
       {isAdmin && showSettings && (
         <div style={{ background: '#fff', border: `1px solid ${LINE}`, borderRadius: 8, padding: 16, marginBottom: 18, fontSize: 13 }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             Considerar "sem comunicação" após
             <input type="number" min={1} value={commThreshold}
               onChange={(e) => setCommThreshold(Math.max(1, Number(e.target.value) || 1))}
               className="cx-input mono" style={{ width: 56, padding: '4px 8px' }} />
-            dias sem nova leitura (só quando a planilha não traz status pronto).
+            dias sem nova leitura.
           </label>
+          {/* O ajuste é quase sempre inerte hoje: a sincronização pela API traz a situação
+              de cada impressora pronta, e só cai nesta regra quem foi cadastrado por
+              planilha sem coluna de situação. Mostrar quantas de fato dependem dele evita
+              o admin mexer aqui esperando efeito que não vem. */}
+          <div style={{ fontSize: 11.5, color: MUTED, marginTop: 8, lineHeight: 1.6 }}>
+            Vale só para impressoras cujo dado veio de planilha <strong>sem</strong> coluna de
+            situação. As sincronizadas pela API do PrintWayy já trazem a situação pronta e
+            ignoram este ajuste.
+            <div style={{ marginTop: 2 }}>
+              {semStatusCount === 0
+                ? 'Nenhuma impressora depende deste ajuste no momento.'
+                : `Impressoras que dependem deste ajuste agora: ${semStatusCount}.`}
+            </div>
+          </div>
         </div>
       )}
 
@@ -385,9 +434,21 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
             </div>
 
             <div style={{ background: '#fff', border: `1px solid ${LINE}`, borderRadius: 10, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ flex: 1 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: MUTED }}>Comunicação</div>
                 <div className="mono" style={{ fontSize: 22, fontWeight: 600, color: INK, marginTop: 4 }}>{kpis.online}/{kpis.total}</div>
+                {/* Legenda da rosca: sem ela os quatro estados existiam só como cor, sem
+                    número visível em lugar nenhum depois que o card "Sem monitoramento"
+                    virou "Offline". */}
+                <div style={{ fontSize: 11, color: MUTED, marginTop: 4, lineHeight: 1.6 }}>
+                  {commPieData.map((d) => (
+                    <div key={d.name} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <span style={{ width: 7, height: 7, borderRadius: '50%', background: d.color, flexShrink: 0 }} />
+                      <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.name}</span>
+                      <strong className="mono" style={{ color: INK }}>{d.value}</strong>
+                    </div>
+                  ))}
+                </div>
               </div>
               <MiniDonut data={commPieData} />
             </div>
@@ -404,10 +465,13 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
 
             <div style={{ background: '#fff', border: `1px solid ${LINE}`, borderRadius: 10, padding: '14px 16px' }}>
               <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: MUTED }}>
-                Sem monitoramento
+                Offline
               </div>
-              <div className="mono" style={{ fontSize: 26, fontWeight: 600, color: ORANGE_DEEP, marginTop: 4 }}>
-                {kpis.semMonitoramento}
+              <div className="mono" style={{ fontSize: 26, fontWeight: 600, color: kpis.offline > 0 ? DANGER : TEAL, marginTop: 4 }}>
+                {kpis.offline}
+              </div>
+              <div style={{ fontSize: 10.5, color: '#9CA3AF', marginTop: 2 }}>
+                {kpis.offline > 0 ? 'Sem comunicar na última sincronização' : 'Todas comunicando'}
               </div>
             </div>
 
@@ -437,12 +501,12 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
               <div style={{ background: '#fff', border: `1px solid ${LINE}`, borderRadius: 10, padding: 16 }}>
                 {showTopClientes ? (
                   <>
-                    <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 8, color: MUTED }}>Clientes que mais imprimem no mês atual (páginas)</div>
+                    <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 8, color: MUTED }}>Clientes que mais imprimiram no mês anterior (páginas)</div>
                     <BarChartTopConsumo data={topClientes} />
                   </>
                 ) : (
                   <>
-                    <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 8, color: MUTED }}>Maior consumo no mês atual (páginas)</div>
+                    <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 8, color: MUTED }}>Maior consumo no mês anterior (páginas)</div>
                     <BarChartTopConsumo data={topConsumo} />
                   </>
                 )}
@@ -450,64 +514,32 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
             </div>
           )}
 
-          <div style={{ marginBottom: 20 }}>
-            <div style={{ background: '#fff', border: `1px solid ${LINE}`, borderRadius: 10, padding: 16 }}>
-              <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 4, color: MUTED }}>Impressoras sem comunicação — há quanto tempo</div>
-              <div style={{ fontSize: 11.5, color: '#9CA3AF', marginBottom: 10 }}>
-                Ordenadas da mais tempo parada para a mais recente. Conexão USB depende do PC host ligado.
-              </div>
-              {offlineList.length === 0 ? (
-                <div style={{ padding: '30px 0', textAlign: 'center', color: TEAL, fontSize: 13.5 }}>Todas comunicando. Nenhuma parada.</div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {offlineList.map((p) => {
-                    const maxDays = offlineList[0].daysSince || 1;
-                    const pct = Math.max(6, Math.round(((p.daysSince || 0) / maxDays) * 100));
-                    return (
-                      <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
-                        <div style={{ width: 220, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={p.local}>
-                          {p.local || p.id}
-                        </div>
-                        <div style={{ flex: 1, background: '#F5F0EE', borderRadius: 4, height: 16, position: 'relative' }}>
-                          <div style={{ width: pct + '%', background: DANGER, height: '100%', borderRadius: 4, opacity: 0.85 }} />
-                        </div>
-                        <div className="mono" style={{ width: 62, textAlign: 'right', color: DANGER }}>{p.daysSince}d</div>
-                        <div style={{ width: 44, fontSize: 10.5, color: MUTED }}>{p.conexao}</div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
+          <PrinterIssueList
+            title="Impressoras sem comunicação na última sincronização"
+            subtitle={`${lastSync ? `Situação apurada na sincronização de ${formatDateBR(lastSync.date)} às ${lastSync.time}h. ` : ''}Conexão USB depende do PC host estar ligado. Clique numa linha para ver o histórico.`}
+            items={offlineList}
+            total={kpis.total}
+            accent={DANGER}
+            background="#FEF5F4"
+            label={offlineLabel}
+            emptyMessage="Todas comunicando. Nenhuma parada."
+            emptyColor={TEAL}
+            onSelect={setSelectedPrinter}
+          />
 
           {semMonitoramentoList.length > 0 && (
-            <div style={{ marginBottom: 20 }}>
-              <div style={{ background: '#fff', border: `1px solid ${LINE}`, borderRadius: 10, padding: 16 }}>
-                <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 4, color: MUTED }}>Impressoras sem monitoramento de páginas</div>
-                <div style={{ fontSize: 11.5, color: '#9CA3AF', marginBottom: 10 }}>
-                  Contador zerado — o PrintWayy não está recebendo leitura de páginas dessas impressoras, mesmo comunicando.
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {semMonitoramentoList.map((p) => {
-                    const maxDays = semMonitoramentoList[0].daysSince || 1;
-                    const pct = Math.max(6, Math.round(((p.daysSince || 0) / maxDays) * 100));
-                    return (
-                      <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
-                        <div style={{ width: 220, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={p.local}>
-                          {p.local || p.id}
-                        </div>
-                        <div style={{ flex: 1, background: '#FDECD9', borderRadius: 4, height: 16, position: 'relative' }}>
-                          <div style={{ width: pct + '%', background: ORANGE, height: '100%', borderRadius: 4, opacity: 0.85 }} />
-                        </div>
-                        <div className="mono" style={{ width: 62, textAlign: 'right', color: ORANGE }}>{p.daysSince}d</div>
-                        <div style={{ width: 44, fontSize: 10.5, color: MUTED }}>{p.conexao}</div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
+            <PrinterIssueList
+              title="Impressoras sem monitoramento de páginas"
+              subtitle="Contador zerado — o PrintWayy não está recebendo leitura de páginas dessas impressoras, mesmo comunicando. Clique numa linha para ver o histórico."
+              items={semMonitoramentoList}
+              total={kpis.total}
+              accent={ORANGE}
+              background="#FDECD9"
+              label={semMonitoramentoLabel}
+              emptyMessage=""
+              emptyColor={TEAL}
+              onSelect={setSelectedPrinter}
+            />
           )}
 
           <div style={{ display: 'flex', gap: 10, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -565,7 +597,7 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
                     <td className="mono">{p.ip || '—'}</td>
                     {isAdmin && <td>{p.cliente}</td>}
                     <td className="mono" style={{ color: p.comm === 'offline' ? DANGER : p.comm === 'sem-monitoramento' ? ORANGE : 'inherit' }}>
-                      {p.lastReading ? `${p.lastReading.data} (${p.daysSince}d)` : '—'}
+                      {p.lastReading ? `${formatDateBR(p.lastReading.data)} (${p.daysSince}d)` : '—'}
                     </td>
                     {hasCounters && <td className="mono">{p.contador !== null ? p.contador.toLocaleString('pt-BR') : '—'}</td>}
                   </tr>

@@ -1,3 +1,38 @@
+// O status de comunicação chega por dois caminhos com vocabulário diferente: o sync da
+// API grava "Sem comunicação (PrintWayy)"/"Comunicando (PrintWayy)", e um relatório de
+// status exportado em planilha pode trazer "offline", "falha de comunicação",
+// "desligada". Um regex só cobre os dois.
+const OFFLINE_STATUS_RE = /sem comunica|offline|no\s?comm|falha|desligad/i;
+
+export function isOfflineStatus(status) {
+  return !!status && OFFLINE_STATUS_RE.test(status);
+}
+
+function daysUntilNow(isoDate) {
+  return Math.floor((Date.now() - new Date(isoDate).getTime()) / 86400000);
+}
+
+// Data da primeira leitura da sequência consecutiva, no fim do histórico, em que
+// `condicao` é verdadeira. Serve pra "desde quando está assim" — parada de comunicar ou
+// com contador travado em zero. Para no primeiro dia que quebra a sequência, então não
+// varre o histórico inteiro.
+// Big O: O(leituras da sequência atual), não O(histórico).
+function findSinceWhen(list, condicao) {
+  let since = null;
+  for (let i = list.length - 1; i >= 0; i--) {
+    if (!condicao(list[i])) break;
+    since = list[i].data;
+  }
+  return since;
+}
+
+// Só leitura com status explícito conta como "sem comunicação" — as importadas de
+// planilha vêm com status nulo, e tratar "sem status" como "estava comunicando"
+// inventaria um dado que não temos. Na prática o valor não retrocede além da primeira
+// sincronização pela API, que é quando passou a existir registro de status dia a dia.
+const estaOffline = (r) => isOfflineStatus(r.status);
+const contadorZerado = (r) => r.contador_pb === 0;
+
 // Big O: O(impressoras + leituras) — uma passada para agrupar leituras por impressora
 // (readings pode chegar a alguns milhares de linhas num parque de dezenas de equipamentos
 // com histórico de meses) e outra sobre o cadastro de impressoras.
@@ -13,23 +48,41 @@ export function computePrinterStats(printers, readings, commThreshold) {
       const last = list[list.length - 1];
       const withCounter = list.filter((r) => r.contador_pb !== null && r.contador_pb !== undefined);
       const lastC = withCounter[withCounter.length - 1];
-      const daysSince = last ? Math.floor((Date.now() - new Date(last.data).getTime()) / 86400000) : null;
+      const daysSince = last ? daysUntilNow(last.data) : null;
 
       let comm = 'sem-dados';
       if (last) {
         if (last.status) {
-          comm = /sem comunica|offline|no\s?comm|falha|desligad/i.test(last.status) ? 'offline' : 'online';
+          comm = isOfflineStatus(last.status) ? 'offline' : 'online';
         } else if (daysSince !== null) {
           comm = daysSince > commThreshold ? 'offline' : 'online';
         }
       }
       // Contador zerado é sinal de que o PrintWayy não está recebendo leitura de página
       // real dessa impressora — mesmo "comunicando" (pingando), não está monitorando.
-      if (lastC && lastC.contador_pb === 0) {
+      // Não vale pra quem já está offline: aí o contador parado é consequência da falta
+      // de comunicação, não um problema separado, e "sem comunicação" é o diagnóstico
+      // acionável (era o contrário antes, e escondia impressora parada no bucket errado).
+      if (comm !== 'offline' && lastC && lastC.contador_pb === 0) {
         comm = 'sem-monitoramento';
       }
 
-      return { ...printer, lastReading: last, contador: lastC ? lastC.contador_pb : null, daysSince, comm };
+      const offlineSince = comm === 'offline' ? findSinceWhen(list, estaOffline) : null;
+      // Contador zerado só é medido sobre leituras que trazem contador — uma leitura sem
+      // contador no meio não significa que a impressora voltou a registrar página.
+      const zeroSince = comm === 'sem-monitoramento' ? findSinceWhen(withCounter, contadorZerado) : null;
+
+      return {
+        ...printer,
+        lastReading: last,
+        contador: lastC ? lastC.contador_pb : null,
+        daysSince,
+        comm,
+        offlineSince,
+        offlineDays: offlineSince ? daysUntilNow(offlineSince) : null,
+        zeroSince,
+        zeroDays: zeroSince ? daysUntilNow(zeroSince) : null,
+      };
     })
     .sort((a, b) => a.id.localeCompare(b.id));
 }
@@ -58,12 +111,24 @@ export function computeLastSync(stats, readings) {
   return { date: latest.slice(0, 10), time, daysAgo };
 }
 
+// Quem não respondeu na última sincronização. Ordena da parada há mais tempo pra mais
+// recente; com o sync rodando de hora em hora o normal é várias empatarem no mesmo dia,
+// então desempata pelo ponto físico — sem isso a lista trocava de ordem a cada refresh.
 export function computeOfflineList(stats) {
-  return stats.filter((p) => p.comm === 'offline').sort((a, b) => (b.daysSince || 0) - (a.daysSince || 0));
+  return stats
+    .filter((p) => p.comm === 'offline')
+    .sort((a, b) => (b.offlineDays || 0) - (a.offlineDays || 0)
+      || (a.local || a.id).localeCompare(b.local || b.id));
 }
 
+// Comunica mas não registra página (contador travado em zero). Mesma ordenação da lista
+// de offline: mais tempo no estado primeiro, desempate por ponto físico pra não embaralhar
+// a cada refresh.
 export function computeSemMonitoramentoList(stats) {
-  return stats.filter((p) => p.comm === 'sem-monitoramento').sort((a, b) => (b.daysSince || 0) - (a.daysSince || 0));
+  return stats
+    .filter((p) => p.comm === 'sem-monitoramento')
+    .sort((a, b) => (b.zeroDays || 0) - (a.zeroDays || 0)
+      || (a.local || a.id).localeCompare(b.local || b.id));
 }
 
 export function computeConexaoData(stats) {
