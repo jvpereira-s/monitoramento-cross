@@ -36,12 +36,15 @@ begin
     (v_admin_id,   'teste-rls-admin@invalido.local'),
     (v_intruso_id, 'teste-rls-intruso@invalido.local');
 
-  insert into public.profiles (id, role, cliente_associado) values
-    (v_cliente_id, 'cliente', current_setting('teste.cliente_nome')),
-    (v_admin_id,   'admin',   null),
+  -- `username` é not null unique com check de formato (migration 0002): só minúscula,
+  -- dígito, ponto, hífen e sublinhado. Os nomes abaixo respeitam isso e são improváveis
+  -- de colidir com conta real.
+  insert into public.profiles (id, role, cliente_associado, username) values
+    (v_cliente_id, 'cliente', current_setting('teste.cliente_nome'), 'teste-rls-cliente'),
+    (v_admin_id,   'admin',   null,                                  'teste-rls-admin'),
     -- Cliente de um contrato que não existe: prova que a policy compara o texto de
     -- verdade, em vez de simplesmente liberar tudo para qualquer papel 'cliente'.
-    (v_intruso_id, 'cliente', 'Contrato Que Nao Existe');
+    (v_intruso_id, 'cliente', 'Contrato Que Nao Existe',             'teste-rls-intruso');
 
   perform set_config('teste.cliente_id', v_cliente_id::text, true);
   perform set_config('teste.admin_id',   v_admin_id::text,   true);
