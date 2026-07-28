@@ -235,12 +235,21 @@ da planilha contra isso — pendência 3 abaixo, ainda não conferido contra o s
      RLS fecha corretamente (200 com array vazio é o certo — o PostgREST responde, a
      policy é que não entrega linha). Escrita anônima **não** foi testada de propósito:
      se a policy estivesse quebrada, o teste inseriria lixo em produção.
-   - **Falta rodar `supabase/tests/rls_isolamento.sql`** no SQL Editor (cobre escrita com
-     segurança, dentro de transação desfeita) e **entrar pela tela com uma conta cliente
-     real** — o script prova o Postgres, não o caminho de login (e-mail sintético, carga
-     do perfil, telas). Criar a conta é ação de credencial real, feita pela tela
-     **Usuários**: Papel = Cliente, Cliente associado = exatamente `Fundo Municipal de
-     Saúde de São Gabriel da Palha` (37 impressoras esperadas).
+   - ~~`supabase/tests/rls_isolamento.sql`~~ — rodado contra o banco real (28/07/2026, via
+     Management API com personal access token do usuário, revogado depois): os quatro
+     cenários passaram e a verificação pós-execução confirmou zero resíduo (o `rollback`
+     limpa perfis, usuários e impressoras de teste). Cobre também a escrita: cliente não
+     consegue INSERT (barrado por policy) e UPDATE/DELETE afetam 0 linhas.
+   - ~~Login de cliente real~~ — testado com a conta `saude.sgp` (28/07/2026), autenticando
+     pela mesma rota da tela (`saude.sgp@cross.local`): perfil volta `role: cliente` com o
+     `cliente_associado` certo, 37 impressoras visíveis, 1 único cliente distinto, 325
+     leituras. Nenhum vazamento.
+   - **Falta só conferir a UI logado como cliente**: menu **Usuários** ausente, botões
+     **Importar planilha** / **Impressora** / **Sincronizar agora** ausentes, tabela sem a
+     coluna **Cliente**. A RLS já garante o dado; isso confirma que a tela não oferece
+     ação que o banco vai negar.
+   - **Senha da conta de teste (`cliente123`) é fraca e foi exposta em conversa** — trocar
+     ou apagar a conta antes de entregar o acesso ao cliente.
 8. **Deploy HostGator + HTTPS** — preparado, falta executar no cPanel (28/07/2026).
    - ~~Redirect HTTPS~~ — pronto em `public/.htaccess`, com dupla condição (`%{HTTPS}` e
      `X-Forwarded-Proto`) porque o HostGator serve atrás de proxy; só com a primeira,
