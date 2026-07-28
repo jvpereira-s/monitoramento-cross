@@ -100,8 +100,29 @@ leitura somente do próprio contrato).
 - `src/pages/` — telas completas: `Login`, `Painel` (dashboard + import), `Relatorio`,
   `Usuarios` (gestão de contas, só admin).
 - `src/components/` — peças reutilizáveis de UI (`AppShell`, `PrinterDetailModal`,
-  `RegisterPrinterModal`, `Globe` (globo 3D da tela de login), gráficos, etc.), sem
-  lógica de negócio própria — chamam as funções de `src/lib/`.
+  `RegisterPrinterModal`, `PrinterIssueList` (as duas listas de impressora com problema
+  do Painel), `ErrorBoundary` (rede de segurança da árvore inteira, montada na raiz em
+  `main.jsx`), `Globe` (globo 3D da tela de login, carregado com `React.lazy`), gráficos,
+  etc.), sem lógica de negócio própria — chamam as funções de `src/lib/`.
+- `supabase/tests/rls_isolamento.sql` — teste de isolamento entre clientes, para colar no
+  SQL Editor. Cria usuários descartáveis dentro de `begin`/`rollback` (nada persiste,
+  nenhuma senha é definida) e cobre quatro cenários: cliente do contrato, cliente de
+  contrato inexistente, visitante sem login e admin (contraprova — sem ela, uma RLS
+  quebrada demais passaria nos outros três).
+
+**Testes**: `npm test` (vitest, 86 testes), `npm run test:coverage` (falha abaixo de 80%
+em qualquer métrica). Cobertura medida só sobre `report.js`, `printerStats.js`,
+`importPrinters.js`, `mapping.js` e `ErrorBoundary.jsx` — `db`/`auth`/`users`/
+`printwayySync` são camada de I/O e exigiriam teste de integração, não unitário; incluí-los
+diluiria o número sem medir nada. Ambiente padrão é `node`; teste de componente pede
+`// @vitest-environment jsdom` no topo do arquivo. Três bugs reais já viraram teste de
+regressão: fronteira do mês fechado, precedência offline × contador zerado, e
+`Observação`→`local` / `Departamento`→`departamento` no mapeamento da planilha.
+
+**Carga inicial**: as quatro telas, o `Globe` (three + d3-geo) e as libs de planilha
+(`xlsx`, `papaparse`, `exceljs`) são todas carregadas sob demanda. Quem abre o login baixa
+~121 kB gzip, não os ~503 kB de antes — não desfazer esses `lazy`/`import()` dinâmicos sem
+medir o custo no bundle.
 - `supabase/migrations/` — schema do banco, aplicado manualmente via SQL Editor, em
   ordem numérica. Mudança de schema = nova migration numerada, nunca editar uma já
   aplicada em produção.
@@ -130,7 +151,8 @@ saber (nem precisar saber) qual via originou uma linha. Nenhum dado de negócio 
 fora do Supabase.
 
 **Stack**: Vite + React (JS puro, sem TypeScript no front), Tailwind CSS v4, Supabase
-(Postgres + Auth + Edge Functions), recharts, papaparse, xlsx, three + d3-geo (globo 3D
+(Postgres + Auth + Edge Functions), vitest (+ jsdom e testing-library para componente),
+recharts, papaparse, xlsx, three + d3-geo (globo 3D
 decorativo da tela de login, `src/components/Globe.jsx`). Deploy: build estático
 (`npm run build` → `dist/`) publicado no HostGator via upload manual (cPanel/FTP) — ver
 `README.md` seção de deploy e `MANUTENCAO.md`.
@@ -207,15 +229,30 @@ da planilha contra isso — pendência 3 abaixo, ainda não conferido contra o s
    "até hoje", porque `computeReportRows` já limita pela leitura mais recente
    disponível, dá no mesmo resultado sem caso especial. Testado manualmente contra
    viradas de ano e ano bissexto.
-7. **Testar isolamento RLS logando como cliente** — confirmar que só aparecem as 35
-   impressoras de São Gabriel. Dado já pronto (pendência 3); falta só a conta de
-   teste. Criar usuário é ação de credencial real — o classificador do Claude Code
-   bloqueou a tentativa de criar programaticamente, corretamente (é exatamente o tipo
-   de ação que precisa de confirmação explícita, não decisão autônoma). Fazer pela
-   tela **Usuários** mesmo: Papel = Cliente, Cliente associado = exatamente `Saúde São
-   Gabriel da Palha`.
-8. **Deploy HostGator + HTTPS** — build, subir, ativar SSL (AutoSSL no cPanel). Ação
-   manual do usuário (upload/cPanel), fora do alcance do Claude Code neste ambiente.
+7. **Testar isolamento RLS** — parcialmente feito (28/07/2026).
+   - ~~Acesso anônimo~~ — testado ao vivo contra produção com a chave pública:
+     `GET /printers`, `/readings` e `/profiles` sem sessão devolvem `HTTP 200` com `[]`.
+     RLS fecha corretamente (200 com array vazio é o certo — o PostgREST responde, a
+     policy é que não entrega linha). Escrita anônima **não** foi testada de propósito:
+     se a policy estivesse quebrada, o teste inseriria lixo em produção.
+   - **Falta rodar `supabase/tests/rls_isolamento.sql`** no SQL Editor (cobre escrita com
+     segurança, dentro de transação desfeita) e **entrar pela tela com uma conta cliente
+     real** — o script prova o Postgres, não o caminho de login (e-mail sintético, carga
+     do perfil, telas). Criar a conta é ação de credencial real, feita pela tela
+     **Usuários**: Papel = Cliente, Cliente associado = exatamente `Fundo Municipal de
+     Saúde de São Gabriel da Palha` (37 impressoras esperadas).
+8. **Deploy HostGator + HTTPS** — preparado, falta executar no cPanel (28/07/2026).
+   - ~~Redirect HTTPS~~ — pronto em `public/.htaccess`, com dupla condição (`%{HTTPS}` e
+     `X-Forwarded-Proto`) porque o HostGator serve atrás de proxy; só com a primeira,
+     conexão já segura entra em loop de redirect.
+   - ~~Build verificado servindo~~ — `vite preview` + curl: `index.html`, JS e CSS todos
+     200, nenhuma chave no HTML.
+   - **Ordem obrigatória**: ativar o AutoSSL **antes** de subir. Com o redirect ativo e
+     sem certificado emitido, o site fica inacessível. Recuperação: Gerenciador de
+     Arquivos → editar `.htaccess` → apagar o bloco `<IfModule mod_rewrite.c>`.
+   - Pacote: `npm run build` e depois zipar o **conteúdo** de `dist/` (não a pasta), com
+     o `.htaccess` dentro — no cPanel, marcar **Show Hidden Files** pra conferir que ele
+     chegou.
 9. ~~Confirmar regeneração do token do PrintWayy~~ — usuário forneceu um token novo
    (23/07/2026), configurado como secret. Assumindo que é o token regenerado (não o
    exposto) — não verificável remotamente, mas é o que foi informado.
