@@ -48,6 +48,15 @@ function offlineLabel(p) {
   );
 }
 
+// Coluna "Última comunicação" da tabela e do CSV: último contato da impressora com o
+// PrintWayy. Antes mostrava a data da última leitura do nosso sync, que é sempre "hoje".
+function ultimaComunicacaoText(p) {
+  if (p.situacao_printwayy === 'fora-do-contrato') return 'Fora do contrato';
+  if (p.situacao_printwayy === 'nao-encontrada') return 'Sem cadastro no PrintWayy';
+  if (!p.ultimaComunicacao) return '—';
+  return `${formatDateTimeBR(p.ultimaComunicacao)} (${p.diasSemComunicar}d)`;
+}
+
 function semMonitoramentoLabel(p) {
   if (p.situacao_printwayy === 'nao-encontrada') return 'Sem cadastro no PrintWayy';
   if (p.zeroDays === null) return 'Contador zerado';
@@ -160,7 +169,7 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
       let av, bv;
       if (sortBy === 'local') { av = (a.local || a.id).toLowerCase(); bv = (b.local || b.id).toLowerCase(); }
       else if (sortBy === 'comm') { av = a.comm; bv = b.comm; }
-      else if (sortBy === 'dias') { av = a.daysSince ?? -1; bv = b.daysSince ?? -1; }
+      else if (sortBy === 'dias') { av = a.diasSemComunicar ?? -1; bv = b.diasSemComunicar ?? -1; }
       else { av = a.id; bv = b.id; }
       if (av < bv) return sortDir === 'asc' ? -1 : 1;
       if (av > bv) return sortDir === 'asc' ? 1 : -1;
@@ -182,7 +191,7 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
     const rows = sorted.map((p) => [
       p.local || p.id, p.departamento || '', p.modelo || '', p.conexao || '', p.ip || '',
       ...(isAdmin ? [p.cliente || ''] : []),
-      p.comm, p.lastReading ? p.lastReading.data : '', p.daysSince ?? '',
+      p.comm, p.ultimaComunicacao ? formatDateTimeBR(p.ultimaComunicacao) : '', p.diasSemComunicar ?? '',
       ...(hasCounters ? [p.contador ?? ''] : []),
     ]);
     const escape = (v) => {
@@ -490,7 +499,7 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
                 {kpis.offline}
               </div>
               <div style={{ fontSize: 10.5, color: '#9CA3AF', marginTop: 2 }}>
-                {kpis.offline > 0 ? 'Sem comunicar na última sincronização' : 'Todas comunicando'}
+                {kpis.offline > 0 ? 'Sem comunicação com o PrintWayy' : 'Todas comunicando'}
               </div>
             </div>
 
@@ -616,7 +625,7 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
                     <td className="mono">{p.ip || '—'}</td>
                     {isAdmin && <td>{p.cliente}</td>}
                     <td className="mono" style={{ color: p.comm === 'offline' ? DANGER : p.comm === 'sem-monitoramento' ? ORANGE : 'inherit' }}>
-                      {p.lastReading ? `${formatDateBR(p.lastReading.data)} (${p.daysSince}d)` : '—'}
+                      {ultimaComunicacaoText(p)}
                     </td>
                     {hasCounters && <td className="mono">{p.contador !== null ? p.contador.toLocaleString('pt-BR') : '—'}</td>}
                   </tr>

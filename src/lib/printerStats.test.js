@@ -292,6 +292,10 @@ describe('situação na PrintWayy e última comunicação', () => {
     expect(p.comm).toBe('offline');
     expect(p.ultimaComunicacao).toBe('2026-07-18T12:49:09.020Z');
     expect(p.offlineDays).toBe(10);
+    // coluna "Última comunicação": dias desde o contato com o PrintWayy, não desde a
+    // última leitura do nosso sync (que é de hoje, daysSince = 0)
+    expect(p.diasSemComunicar).toBe(10);
+    expect(p.daysSince).toBe(0);
   });
 
   it('impressora fora do contrato na PrintWayy é tratada como parada, mesmo comunicando lá', () => {

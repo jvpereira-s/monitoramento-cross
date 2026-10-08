@@ -94,6 +94,10 @@ export function computePrinterStats(printers, readings, commThreshold) {
         daysSince,
         comm,
         ultimaComunicacao,
+        // Dias desde o último contato com o PrintWayy, que alimenta a coluna "Última
+        // comunicação" do painel e o CSV. Não é `daysSince`, que conta desde a última
+        // leitura gravada pelo NOSSO sync e é sempre ~0 numa impressora parada há meses.
+        diasSemComunicar: ultimaComunicacao ? daysUntilNow(ultimaComunicacao) : null,
         offlineSince,
         offlineDays: offlineSince ? daysUntilNow(offlineSince) : null,
         zeroSince,
