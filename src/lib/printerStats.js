@@ -43,6 +43,9 @@ export function computePrinterStats(printers, readings, commThreshold) {
   });
 
   return printers
+    // Removida do contrato (troca/devolução): sai do painel. O histórico continua no
+    // banco e no relatório de períodos anteriores à saída (ver computeReportRows).
+    .filter((printer) => !printer.removida_em)
     .map((printer) => {
       const list = (byPrinter[printer.id] || []).slice().sort((a, b) => (a.data > b.data ? 1 : -1));
       const last = list[list.length - 1];
@@ -66,8 +69,20 @@ export function computePrinterStats(printers, readings, commThreshold) {
       if (comm !== 'offline' && lastC && lastC.contador_pb === 0) {
         comm = 'sem-monitoramento';
       }
+      // A situação na PrintWayy (gravada pelo sync) manda sobre o status da leitura:
+      // fora do contrato = não comunica mais NESTE contrato (o contador está congelado);
+      // não encontrada = equipamento sem monitoramento, contador lançado à mão.
+      if (printer.situacao_printwayy === 'fora-do-contrato') comm = 'offline';
+      else if (printer.situacao_printwayy === 'nao-encontrada') comm = 'sem-monitoramento';
 
-      const offlineSince = comm === 'offline' ? findSinceWhen(list, estaOffline) : null;
+      // "Parada há N dias" conta a partir do último contato da impressora com o PrintWayy
+      // (lastCommunication), igual à tela do PrintWayy. Sem esse dado (impressora ainda
+      // não sincronizada depois da migration 0006, ou importada de planilha), cai na
+      // sequência de leituras offline, que não volta antes da primeira sincronização.
+      const ultimaComunicacao = printer.ultima_comunicacao || null;
+      const offlineSince = comm === 'offline'
+        ? (ultimaComunicacao || findSinceWhen(list, estaOffline))
+        : null;
       // Contador zerado só é medido sobre leituras que trazem contador — uma leitura sem
       // contador no meio não significa que a impressora voltou a registrar página.
       const zeroSince = comm === 'sem-monitoramento' ? findSinceWhen(withCounter, contadorZerado) : null;
@@ -78,6 +93,7 @@ export function computePrinterStats(printers, readings, commThreshold) {
         contador: lastC ? lastC.contador_pb : null,
         daysSince,
         comm,
+        ultimaComunicacao,
         offlineSince,
         offlineDays: offlineSince ? daysUntilNow(offlineSince) : null,
         zeroSince,

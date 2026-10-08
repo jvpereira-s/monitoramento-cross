@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  formatDateBR,
+  formatDateBR, formatDateTimeBR,
   currentMonthRange, previousMonthRange, currentQuarterRange, previousQuarterRange,
   computeReportRows, computeReportTotals, computeMonthlyTotals,
   computeTopConsumo, computeTopClientes, computeDailyTrend,
@@ -43,33 +43,56 @@ describe('formatDateBR', () => {
   });
 });
 
-describe('presets de período', () => {
-  it('mês anterior termina no 1º dia do mês atual, não no último dia do mês anterior', () => {
-    // Regressão: com fim em 30/06 não existe leitura de fechamento dentro da janela
-    // (o snapshot é datado 01/07) e o relatório do mês fechado dava zero.
-    expect(previousMonthRange(HOJE)).toEqual({ start: '2026-06-01', end: '2026-07-01' });
+describe('formatDateTimeBR', () => {
+  it('mostra o lastCommunication (UTC) no horário de Brasília', () => {
+    expect(formatDateTimeBR('2026-03-05T15:49:09.020Z')).toBe('05/03/2026 às 12:49');
   });
 
-  it('mês atual vai do 1º ao último dia do calendário', () => {
-    expect(currentMonthRange(HOJE)).toEqual({ start: '2026-07-01', end: '2026-07-31' });
+  it('devolve travessão sem data ou com data inválida', () => {
+    expect(formatDateTimeBR(null)).toBe('—');
+    expect(formatDateTimeBR('não é data')).toBe('—');
+  });
+});
+
+describe('presets de período (ciclo de faturamento, corte dia 02)', () => {
+  // Regressão: o relatório oficial de SETEMBRO/2026 é 02/09 → 02/10. O sistema usava
+  // 01/09 → 01/10 e cada impressora saía com um dia de consumo deslocado.
+  it('mês anterior é o ciclo fechado 02 → 02', () => {
+    expect(previousMonthRange(new Date(2026, 9, 8))).toEqual({ start: '2026-09-02', end: '2026-10-02' });
   });
 
-  it('trimestre anterior termina no 1º dia do trimestre atual', () => {
-    expect(previousQuarterRange(HOJE)).toEqual({ start: '2026-04-01', end: '2026-07-01' });
+  it('mês atual começa no corte e termina no corte seguinte', () => {
+    expect(currentMonthRange(HOJE)).toEqual({ start: '2026-07-02', end: '2026-08-02' });
   });
 
-  it('trimestre atual cobre o trimestre calendário inteiro', () => {
-    expect(currentQuarterRange(HOJE)).toEqual({ start: '2026-07-01', end: '2026-09-30' });
+  it('no dia 01 o ciclo atual ainda é o que começou no mês anterior', () => {
+    const dia1 = new Date(2026, 9, 1);
+    expect(currentMonthRange(dia1)).toEqual({ start: '2026-09-02', end: '2026-10-02' });
+    expect(previousMonthRange(dia1)).toEqual({ start: '2026-08-02', end: '2026-09-02' });
+  });
+
+  it('no próprio dia de corte o ciclo novo já começou', () => {
+    expect(currentMonthRange(new Date(2026, 9, 2))).toEqual({ start: '2026-10-02', end: '2026-11-02' });
+  });
+
+  it('trimestre anterior termina no corte do trimestre atual', () => {
+    expect(previousQuarterRange(HOJE)).toEqual({ start: '2026-04-02', end: '2026-07-02' });
+  });
+
+  it('trimestre atual cobre três ciclos', () => {
+    expect(currentQuarterRange(HOJE)).toEqual({ start: '2026-07-02', end: '2026-10-02' });
   });
 
   it('vira o ano corretamente em janeiro', () => {
     const janeiro = new Date(2026, 0, 15);
-    expect(previousMonthRange(janeiro)).toEqual({ start: '2025-12-01', end: '2026-01-01' });
-    expect(previousQuarterRange(janeiro)).toEqual({ start: '2025-10-01', end: '2026-01-01' });
+    expect(previousMonthRange(janeiro)).toEqual({ start: '2025-12-02', end: '2026-01-02' });
+    expect(previousQuarterRange(janeiro)).toEqual({ start: '2025-10-02', end: '2026-01-02' });
   });
 
-  it('respeita ano bissexto', () => {
-    expect(currentMonthRange(new Date(2024, 1, 10))).toEqual({ start: '2024-02-01', end: '2024-02-29' });
+  it('em 01/01 o ciclo de dezembro ainda está aberto', () => {
+    const anoNovo = new Date(2027, 0, 1);
+    expect(currentMonthRange(anoNovo)).toEqual({ start: '2026-12-02', end: '2027-01-02' });
+    expect(currentQuarterRange(anoNovo)).toEqual({ start: '2026-10-02', end: '2027-01-02' });
   });
 });
 
@@ -118,6 +141,15 @@ describe('computeReportRows', () => {
     const [row] = computeReportRows(semLeitura, [], CLIENTE, '2026-06-01', '2026-07-01');
     expect(row.hasData).toBe(false);
     expect(row.totalPB).toBeNull();
+  });
+
+  it('impressora removida do contrato some de períodos que começam depois da saída', () => {
+    const comRemovida = [...printers, { id: 'BRBSSD60HN', cliente: CLIENTE, local: 'Casa da Mulher', removida_em: '2026-07-01' }];
+    expect(computeReportRows(comRemovida, readings, CLIENTE, '2026-07-01', '2026-07-20').map((r) => r.id))
+      .not.toContain('BRBSSD60HN');
+    // histórico preservado: período que começa antes da saída ainda a lista
+    expect(computeReportRows(comRemovida, readings, CLIENTE, '2026-06-01', '2026-07-01').map((r) => r.id))
+      .toContain('BRBSSD60HN');
   });
 
   it('nunca devolve total negativo quando o contador é resetado (troca de equipamento)', () => {

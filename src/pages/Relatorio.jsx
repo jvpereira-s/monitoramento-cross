@@ -12,11 +12,9 @@ import { computeLastSync } from '../lib/printerStats';
 import { exportReportCSV, exportReportExcel, exportReportPDF } from '../lib/reportExport';
 import { ORANGE, MUTED, LINE } from '../lib/theme';
 
-function defaultStart() {
-  const d = new Date();
-  d.setDate(d.getDate() - 30);
-  return d.toISOString().slice(0, 10);
-}
+// Abre no último ciclo FECHADO (dia 02 a dia 02): é o período do relatório oficial do
+// contrato. "Últimos 30 dias" nunca coincidia com ele.
+const DEFAULT_RANGE = previousMonthRange();
 
 export default function Relatorio({ profile, isAdmin, onNavigate, onLogout }) {
   const [loading, setLoading] = useState(true);
@@ -25,8 +23,8 @@ export default function Relatorio({ profile, isAdmin, onNavigate, onLogout }) {
   const [error, setError] = useState(null);
 
   const [reportClient, setReportClient] = useState('');
-  const [reportStart, setReportStart] = useState(defaultStart);
-  const [reportEnd, setReportEnd] = useState(() => new Date().toISOString().slice(0, 10));
+  const [reportStart, setReportStart] = useState(DEFAULT_RANGE.start);
+  const [reportEnd, setReportEnd] = useState(DEFAULT_RANGE.end);
 
   useEffect(() => {
     (async () => {
@@ -79,6 +77,7 @@ export default function Relatorio({ profile, isAdmin, onNavigate, onLogout }) {
   }
 
   const PRESETS = [
+    // Mês = ciclo de faturamento do contrato, dia 02 a dia 02 (ver DIA_FECHAMENTO).
     ['Mês atual', currentMonthRange],
     ['Mês anterior', previousMonthRange],
     ['Trimestre atual', currentQuarterRange],

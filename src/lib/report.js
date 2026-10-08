@@ -4,6 +4,18 @@ export function formatDateBR(iso) {
   return `${d}/${m}/${y}`;
 }
 
+// Timestamp ISO (UTC) → "dd/mm/aaaa às hh:mm" no fuso de Brasília, fixo, para não
+// depender do fuso do navegador. Usado na última comunicação com o PrintWayy.
+export function formatDateTimeBR(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  const opts = { timeZone: 'America/Sao_Paulo' };
+  const date = d.toLocaleDateString('pt-BR', { ...opts, day: '2-digit', month: '2-digit', year: 'numeric' });
+  const time = d.toLocaleTimeString('pt-BR', { ...opts, hour: '2-digit', minute: '2-digit' });
+  return `${date} às ${time}`;
+}
+
 function pad2(n) {
   return String(n).padStart(2, '0');
 }
@@ -12,48 +24,53 @@ function toISODate(date) {
   return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
 }
 
-// Presets de período pro seletor de datas do relatório — mês e trimestre, atual e
-// anterior.
+// Dia do mês em que o contrato fecha. Contrato 049/2026: SEMPRE dia 02. O relatório
+// oficial de "SETEMBRO/2026" é contador(02/10) − contador(02/09). Mesmo valor de
+// DIA_FECHAMENTO em supabase/functions/printwayy-sync/discovery.ts, que grava a leitura
+// histórica desse dia direto da PrintWayy.
+export const DIA_FECHAMENTO = 2;
+
+// Presets de período do seletor do relatório: mês e trimestre de FATURAMENTO, atual e
+// anterior. O mês MM é o ciclo [02/MM, 02/MM+1].
 //
-// IMPORTANTE — por que o "fim" de um período fechado é o 1º dia do período SEGUINTE, e
-// não o último dia dele: o contador é lido em snapshots (no contrato atual, dia 1º de
-// cada mês). O consumo de junho = contador(01/07) − contador(01/06). Se o "fim" de junho
-// fosse 30/06, computeReportRows não acharia leitura nenhuma dentro de junho (a de
-// fechamento é datada 01/07) e o total daria ZERO. Por isso o período fechado vai de
-// [1º do mês, 1º do mês seguinte] — a fronteira 01/07 é o fechamento de junho E a
-// abertura de julho ao mesmo tempo, sem dupla contagem (é uma diferença de contadores).
+// O fim é o dia de corte do ciclo SEGUINTE, não o último dia do ciclo, porque o contador
+// é lido em snapshots: o consumo de setembro é contador(02/10) − contador(02/09). Com fim
+// em 01/10, computeReportRows pegaria a leitura errada de fechamento. A fronteira 02/10
+// fecha setembro e abre outubro ao mesmo tempo, sem contar duas vezes (é diferença de
+// contadores).
 //
-// O período "atual" (em andamento) mantém o fim no último dia do calendário: como
-// computeReportRows limita a leitura mais recente <= data final, o resultado é o mesmo
-// que "até hoje", e não faz sentido apontar o fim pra uma data futura no seletor.
+// No ciclo em andamento o fim fica no futuro. Não tem problema: computeReportRows usa a
+// leitura mais recente até a data final, que dá o mesmo resultado de "até hoje".
+function cutDate(year, monthIndex) {
+  return new Date(year, monthIndex, DIA_FECHAMENTO);
+}
+
+// Mês (índice JS, pode ser negativo/>11 — Date normaliza) em que começa o ciclo de hoje.
+function currentCycleMonth(today) {
+  return today.getDate() >= DIA_FECHAMENTO ? today.getMonth() : today.getMonth() - 1;
+}
+
+function range(year, startMonth, months) {
+  return { start: toISODate(cutDate(year, startMonth)), end: toISODate(cutDate(year, startMonth + months)) };
+}
+
 export function currentMonthRange(today = new Date()) {
-  const start = new Date(today.getFullYear(), today.getMonth(), 1);
-  const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-  return { start: toISODate(start), end: toISODate(end) };
+  return range(today.getFullYear(), currentCycleMonth(today), 1);
 }
 
 export function previousMonthRange(today = new Date()) {
-  const start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-  // Fim = 1º dia do mês atual (captura o snapshot de fechamento do mês anterior).
-  const end = new Date(today.getFullYear(), today.getMonth(), 1);
-  return { start: toISODate(start), end: toISODate(end) };
+  return range(today.getFullYear(), currentCycleMonth(today) - 1, 1);
 }
 
+// Trimestre de faturamento: ciclos de jan–mar, abr–jun, jul–set, out–dez.
+// Math.floor com mês negativo (ciclo de dezembro visto em 01/01) cai no trimestre -1, e
+// o Date normaliza para out/ano anterior.
 export function currentQuarterRange(today = new Date()) {
-  const quarter = Math.floor(today.getMonth() / 3);
-  const start = new Date(today.getFullYear(), quarter * 3, 1);
-  const end = new Date(today.getFullYear(), quarter * 3 + 3, 0);
-  return { start: toISODate(start), end: toISODate(end) };
+  return range(today.getFullYear(), Math.floor(currentCycleMonth(today) / 3) * 3, 3);
 }
 
 export function previousQuarterRange(today = new Date()) {
-  const quarter = Math.floor(today.getMonth() / 3) - 1;
-  const year = quarter < 0 ? today.getFullYear() - 1 : today.getFullYear();
-  const normalizedQuarter = quarter < 0 ? 3 : quarter;
-  const start = new Date(year, normalizedQuarter * 3, 1);
-  // Fim = 1º dia do trimestre atual (captura o snapshot de fechamento do anterior).
-  const end = new Date(year, normalizedQuarter * 3 + 3, 1);
-  return { start: toISODate(start), end: toISODate(end) };
+  return range(today.getFullYear(), Math.floor(currentCycleMonth(today) / 3) * 3 - 3, 3);
 }
 
 function groupByPrinter(readings) {
@@ -93,7 +110,10 @@ function periodCounters(list, start, end) {
 // real do PrintWayy: bate exatamente (total geral 52.494 páginas no período 28/04–27/05/2026).
 export function computeReportRows(printers, readings, client, start, end) {
   if (!client) return [];
-  const printersOfClient = printers.filter((p) => p.cliente === client);
+  // Removida do contrato (troca/devolução) ainda conta em períodos que começam antes da
+  // saída, porque o histórico vale. Em período posterior ela não aparece, do mesmo jeito
+  // que o relatório oficial lista só os equipamentos ativos no ciclo.
+  const printersOfClient = printers.filter((p) => p.cliente === client && (!p.removida_em || p.removida_em > start));
   const byPrinter = groupByPrinter(readings);
 
   return printersOfClient

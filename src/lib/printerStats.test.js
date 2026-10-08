@@ -275,3 +275,49 @@ describe('computeConexaoData', () => {
     ]);
   });
 });
+
+describe('situação na PrintWayy e última comunicação', () => {
+  // Regressão: "Parada há N dias" contava a partir da sequência de leituras do nosso sync,
+  // e não do último contato da impressora com o PrintWayy. Uma impressora parada desde
+  // março aparecia como "parada há poucos dias".
+  it('conta o tempo parado a partir do lastCommunication da PrintWayy', () => {
+    const [p] = computePrinterStats(
+      [{ id: 'A', cliente: CLIENTE, ultima_comunicacao: '2026-07-18T12:49:09.020Z' }],
+      [
+        { printer_id: 'A', data: '2026-07-27', contador_pb: 70977, status: OFF },
+        { printer_id: 'A', data: '2026-07-28', contador_pb: 70977, status: OFF },
+      ],
+      THRESHOLD
+    );
+    expect(p.comm).toBe('offline');
+    expect(p.ultimaComunicacao).toBe('2026-07-18T12:49:09.020Z');
+    expect(p.offlineDays).toBe(10);
+  });
+
+  it('impressora fora do contrato na PrintWayy é tratada como parada, mesmo comunicando lá', () => {
+    const [p] = computePrinterStats(
+      [{ id: 'B', cliente: CLIENTE, situacao_printwayy: 'fora-do-contrato' }],
+      [{ printer_id: 'B', data: '2026-07-28', contador_pb: 17237, status: ON }],
+      THRESHOLD
+    );
+    expect(p.comm).toBe('offline');
+  });
+
+  it('impressora sem cadastro na PrintWayy entra como sem monitoramento', () => {
+    const [p] = computePrinterStats(
+      [{ id: 'C', cliente: CLIENTE, situacao_printwayy: 'nao-encontrada' }],
+      [{ printer_id: 'C', data: '2026-07-28', contador_pb: 41, status: null }],
+      THRESHOLD
+    );
+    expect(p.comm).toBe('sem-monitoramento');
+  });
+
+  it('impressora removida do contrato não aparece no painel', () => {
+    const stats = computePrinterStats(
+      [{ id: 'D', cliente: CLIENTE }, { id: 'E', cliente: CLIENTE, removida_em: '2026-07-01' }],
+      [],
+      THRESHOLD
+    );
+    expect(stats.map((p) => p.id)).toEqual(['D']);
+  });
+});

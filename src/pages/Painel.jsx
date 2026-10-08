@@ -17,20 +17,39 @@ import {
   computePrinterStats, computeKpis, computeLastSync, computeOfflineList, computeSemMonitoramentoList,
   computeConexaoData,
 } from '../lib/printerStats';
-import { computeMonthlyTotals, computeTopConsumo, computeTopClientes, formatDateBR } from '../lib/report';
+import { computeMonthlyTotals, computeTopConsumo, computeTopClientes, formatDateBR, formatDateTimeBR } from '../lib/report';
 import { ORANGE, TEAL, INK, MUTED, DANGER, LINE } from '../lib/theme';
 
 // Há quanto tempo a impressora está no estado. `offlineDays`/`zeroDays` contam desde o
 // primeiro dia da sequência, não desde a última leitura — como o sync grava uma leitura
 // por dia para toda impressora (inclusive as com problema), "dias desde a última leitura"
 // seria sempre 0 e não diria nada.
-function offlineLabel(p) {
+function offlineDaysText(p) {
+  if (p.situacao_printwayy === 'fora-do-contrato') return 'Fora do contrato';
   if (p.offlineDays === null) return 'Sem comunicar';
   if (p.offlineDays === 0) return 'Parou hoje';
   return p.offlineDays === 1 ? 'Parada há 1 dia' : `Parada há ${p.offlineDays} dias`;
 }
 
+// Segunda linha = último contato da impressora com o PrintWayy (lastCommunication), no
+// mesmo formato da tela do PrintWayy. Nunca o horário do nosso sync. Impressora fora do
+// contrato não mostra: a comunicação de lá é da instalação em outro cliente.
+function offlineLabel(p) {
+  const showLast = p.ultimaComunicacao && p.situacao_printwayy !== 'fora-do-contrato';
+  return (
+    <>
+      <div>{offlineDaysText(p)}</div>
+      {showLast && (
+        <div className="mono" style={{ fontSize: 10.5, fontWeight: 400, color: MUTED }}>
+          {formatDateTimeBR(p.ultimaComunicacao)}
+        </div>
+      )}
+    </>
+  );
+}
+
 function semMonitoramentoLabel(p) {
+  if (p.situacao_printwayy === 'nao-encontrada') return 'Sem cadastro no PrintWayy';
   if (p.zeroDays === null) return 'Contador zerado';
   if (p.zeroDays === 0) return 'Zerou hoje';
   return p.zeroDays === 1 ? 'Zerada há 1 dia' : `Zerada há ${p.zeroDays} dias`;
@@ -482,7 +501,7 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
               <div className="mono" style={{ fontSize: 26, fontWeight: 600, color: INK, marginTop: 4 }}>
                 {monthlyTotals.lastMonth.toLocaleString('pt-BR')}
               </div>
-              <div style={{ fontSize: 10.5, color: '#9CA3AF', marginTop: 2 }}>Mês fechado</div>
+              <div style={{ fontSize: 10.5, color: '#9CA3AF', marginTop: 2 }}>Ciclo fechado (dia 02 a dia 02)</div>
             </div>
 
             <div style={{ background: '#fff', border: `1px solid ${LINE}`, borderRadius: 10, padding: '14px 16px' }}>
@@ -515,8 +534,8 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
           )}
 
           <PrinterIssueList
-            title="Impressoras sem comunicação na última sincronização"
-            subtitle={`${lastSync ? `Situação apurada na sincronização de ${formatDateBR(lastSync.date)} às ${lastSync.time}h. ` : ''}Conexão USB depende do PC host estar ligado. Clique numa linha para ver o histórico.`}
+            title="Impressoras sem comunicação com o PrintWayy"
+            subtitle={`Data e hora = último contato da impressora com o PrintWayy.${lastSync ? ` Situação conferida em ${formatDateBR(lastSync.date)} às ${lastSync.time}h.` : ''} Conexão USB depende do PC host estar ligado. Clique numa linha para ver o histórico.`}
             items={offlineList}
             total={kpis.total}
             accent={DANGER}

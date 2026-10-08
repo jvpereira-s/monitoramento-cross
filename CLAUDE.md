@@ -266,6 +266,31 @@ da planilha contra isso — pendência 3 abaixo, ainda não conferido contra o s
    (23/07/2026), configurado como secret. Assumindo que é o token regenerado (não o
    exposto) — não verificável remotamente, mas é o que foi informado.
 
+**Contadores × relatório oficial (08/10/2026)**: a referência de verdade é o relatório
+oficial do contrato. Em SETEMBRO/2026 foram **41 impressoras e 47.743 páginas**, e o
+sistema mostrava 53.094. Ciclo de faturamento **sempre dia 02 → dia 02**
+(`DIA_FECHAMENTO` em `report.js` e `discovery.ts`). Fatos confirmados na API real (ação
+`inspect` da função, somente leitura):
+- `lastCommunication` (por impressora) é a "última comunicação" do PrintWayy. A Cross
+  mostra isso, nunca o horário do nosso sync (coluna `printers.ultima_comunicacao`).
+- `GET /counters?date=D` devolve a última captura até D. Com esse valor, 36 de 36
+  impressoras do contrato batem exatamente com o relatório. A leitura "ao vivo" das 18h
+  não basta, porque captura USB chega atrasada. O sync regrava o fechamento por 7 dias
+  depois do dia 02. Para backfill, use a ação `fechamento` com `dates`.
+- Impressora movida na PrintWayy para outro customer ou para o estoque (`inDealer`) sai
+  do contrato. O relatório **congela** o contador dela, e o sync também
+  (`situacao_printwayy = 'fora-do-contrato'`, sem leitura nova). Equipamento sem cadastro
+  na PrintWayy fica `nao-encontrada`, com contador lançado à mão. Troca de equipamento:
+  `printers.removida_em`.
+- O vínculo `printwayy_customers` era aprendido de qualquer impressora e foi contaminado
+  (3 prefeituras alheias ligadas ao Fundo). Agora só aprende por maioria estrita, e só
+  para cliente sem vínculo nenhum.
+- Correção dos dados: `supabase/manutencao/2026-10-08_correcao_contadores.sql`.
+  Conferência: `supabase/tests/conciliacao_setembro_2026.sql` (esperado: zero
+  divergências, total 47.743).
+- O front-end lia `readings` sem paginar, e o PostgREST corta em 1000 linhas (havia 3.189).
+  `db.js` agora pagina.
+
 **Cron job `printwayy-sync-comercial`**: configurado e validado ponta a ponta em
 23/07/2026 — não via Dashboard, via SQL direto (Management API do Supabase, com o
 access token pessoal do usuário como bearer, nunca persistido em arquivo). Sequência

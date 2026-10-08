@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { X, FileText, Download } from 'lucide-react';
 import StatusDot from './StatusDot';
-import { computeReportRows, computeReportTotals } from '../lib/report';
+import { computeReportRows, computeReportTotals, formatDateTimeBR } from '../lib/report';
 import { exportReportCSV, exportReportExcel, exportReportPDF } from '../lib/reportExport';
 import { MUTED, LINE, ORANGE, INK } from '../lib/theme';
 
@@ -80,8 +80,17 @@ export default function PrinterDetailModal({ printer, readings, isAdmin, onClose
           <div><span style={{ color: MUTED }}>Conexão:</span> {printer.conexao || '—'}</div>
           <div><span style={{ color: MUTED }}>IP:</span> <span className="mono">{printer.ip || '—'}</span></div>
           <div>
-            <span style={{ color: MUTED }}>Última comunicação:</span>{' '}
-            {printer.lastReading ? `${printer.lastReading.data} (${printer.daysSince}d)` : '—'}
+            {/* Último contato da IMPRESSORA com o PrintWayy (lastCommunication), não a data
+                da última sincronização da Cross. Antes mostrava a data da última leitura
+                gravada pelo sync, que é sempre "hoje" mesmo pra impressora parada há meses. */}
+            <span style={{ color: MUTED }}>Última comunicação com o PrintWayy:</span>{' '}
+            <span className="mono">
+              {printer.situacao_printwayy === 'fora-do-contrato'
+                ? 'Fora do contrato no PrintWayy (contador congelado)'
+                : printer.situacao_printwayy === 'nao-encontrada'
+                  ? 'Sem cadastro no PrintWayy (contador manual)'
+                  : formatDateTimeBR(printer.ultimaComunicacao ?? printer.ultima_comunicacao)}
+            </span>
           </div>
           <div>
             <span style={{ color: MUTED }}>Contador atual:</span>{' '}

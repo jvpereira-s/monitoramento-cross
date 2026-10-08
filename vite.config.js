@@ -13,7 +13,8 @@ export default defineConfig({
     // DOM. Os poucos testes de componente pedem jsdom com o comentário
     // `// @vitest-environment jsdom` no topo do próprio arquivo.
     environment: 'node',
-    include: ['src/**/*.test.{js,jsx}'],
+    // As decisões puras do sync (Edge Function) também: discovery.ts não depende de Deno.
+    include: ['src/**/*.test.{js,jsx}', 'supabase/functions/**/*.test.ts'],
     coverage: {
       provider: 'v8',
       // Só os módulos de lógica de negócio pura. db/auth/users/printwayySync são camada de

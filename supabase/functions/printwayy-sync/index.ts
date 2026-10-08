@@ -1,4 +1,32 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
+// Cliente com service_role, sem tipos gerados do schema (o projeto não gera). Sem o
+// `any` explícito, o genérico do supabase-js resolve as tabelas como `never`.
+// deno-lint-ignore no-explicit-any
+type AdminClient = SupabaseClient<any, any, any>;
+// Decisões puras (a quem pertence uma impressora nova, como virar linha de printers/
+// readings) ficam em discovery.ts, testadas por vitest. Aqui fica só o I/O: API do
+// PrintWayy e Postgres.
+import {
+  type CustomerConfig,
+  type ObservedCustomer,
+  type PrintwayyPrinter,
+  type RegisteredPrinter,
+  type ResolvedPrinter,
+  type SkippedCustomer,
+  type CounterEntry,
+  classifyPrinter,
+  fechamentoPendente,
+  learnMappings,
+  observeCustomers,
+  pickActive,
+  planDiscovery,
+  selectNewPrinters,
+  todayInBrazil,
+  toFechamentoRow,
+  toPrinterRow,
+  toReadingRow,
+  toSituacaoRow,
+} from './discovery.ts';
 
 // SUPABASE_URL, SUPABASE_ANON_KEY e SUPABASE_SERVICE_ROLE_KEY são injetadas
 // automaticamente pelo Supabase em toda Edge Function — não precisam ser configuradas.
@@ -13,43 +41,20 @@ const PRINTWAYY_API_KEY = Deno.env.get('PRINTWAYY_API_KEY');
 const PRINTWAYY_BASE = 'https://api.printwayy.com/devices/v1';
 const COUNTERS_CONCURRENCY = 4; // ver justificativa no README, seção "Sincronização automática"
 const FETCH_TIMEOUT_MS = 15000;
+const PAGE_SIZE = 100; // usado só na descoberta de impressora nova (ver fetchCustomerPrinters)
+const MAX_PAGES = 200; // proteção defensiva contra loop infinito, não um limite real esperado
+const INSPECT_MAX_SERIALS = 10; // teto da ação de diagnóstico, pra caber no timeout da função
 
-const STATUS_TEXT_OFFLINE = 'Sem comunicação (PrintWayy)';
-const STATUS_TEXT_ONLINE = 'Comunicando (PrintWayy)';
-// notMonitored/unknown caem no bucket "offline" existente (decisão do produto — sem
-// bucket visual novo). countManual/inDealer ficam de fora do Set e caem no branch
-// "online" por omissão. Reaproveitado também em pickActive() abaixo, pra escolher o
-// registro "vivo" quando a busca por serial devolve mais de um resultado.
-const OFFLINE_API_STATUSES = new Set(['offline', 'notMonitored', 'unknown']);
-const CONEXAO_MAP: Record<string, string> = { usb: 'USB', network: 'Rede' };
-
-interface PrintwayyPrinter {
-  id: string; // UUID do PrintWayy — usado só pra chamar /counters
-  type: 'usb' | 'network' | 'unknown';
-  serialNumber: string; // == nossa printers.id
-  status: string;
-  model?: string;
-  ipAddress?: string;
-  installationPoint?: string;
-  observation?: string;
-  // Não usado pra decidir o campo `cliente` — esse é dado nosso, definido pelo admin
-  // no cadastro (ver fetchRegisteredPrinters). customer.name é da PrintWayy e não tem
-  // garantia de bater com o texto que profiles.cliente_associado usa pra RLS.
-  customer: { id: string; name: string } | null;
-  location: { department?: string; address?: unknown } | null;
+interface PrintersPage {
+  count: number;
+  data: PrintwayyPrinter[];
 }
 
-interface CounterEntry {
-  type: string;
-  dateOfCapture: string;
-  totalCount: number;
-}
-
-// Impressora já cadastrada em `printers` por nós — é essa lista (não o parque da
-// PrintWayy) que define o escopo de quem entra na sincronização.
-interface RegisteredPrinter {
-  id: string; // serial number, nossa PK
-  cliente: string;
+interface DiscoveryOutcome {
+  discovered: string[]; // seriais cadastrados nesta execução
+  readings: number; // leituras gravadas pra eles
+  skipped: SkippedCustomer[];
+  errors: Array<{ serialNumber: string; message: string }>;
 }
 
 class PrintwayyApiError extends Error {
@@ -104,47 +109,81 @@ async function printwayyFetch(path: string): Promise<unknown> {
 
 // Resolve UM serial cadastrado por nós pro registro correspondente na PrintWayy.
 // Substitui o fetchAllPrinters() antigo (paginava milhares de impressoras que não
-// pertencem ao parque da Cross) — agora só busca quem a Cross realmente cadastrou,
-// nunca o parque inteiro visível pela API key.
+// pertencem ao parque da Cross) — agora só busca quem a Cross realmente cadastrou.
 // [Suposição não testada] Assumindo que o envelope de resposta é o mesmo {count, data}
 // documentado pra /printers paginado — só foi confirmado nesse formato pra listagem
 // completa, não especificamente filtrado por serial-number. Vale conferir na primeira
 // chamada real.
 async function fetchPrinterBySerial(serial: string): Promise<PrintwayyPrinter[]> {
-  const res = (await printwayyFetch(`/printers?serial-number=${encodeURIComponent(serial)}`)) as {
-    count: number;
-    data: PrintwayyPrinter[];
-  };
+  const res = (await printwayyFetch(`/printers?serial-number=${encodeURIComponent(serial)}`)) as PrintersPage;
   return res.data ?? [];
 }
 
-async function fetchCounters(printwayyId: string): Promise<CounterEntry[]> {
-  return (await printwayyFetch(`/printers/${printwayyId}/counters`)) as CounterEntry[];
+async function fetchPrintersPage(skip: number, customerId: string | null): Promise<PrintersPage> {
+  const filter = customerId ? `&customer-id=${encodeURIComponent(customerId)}` : '';
+  return (await printwayyFetch(`/printers?top=${PAGE_SIZE}&skip=${skip}${filter}`)) as PrintersPage;
 }
 
-// Quando a busca por serial devolve mais de um registro (cenário de reset de contador
-// documentado no MANUTENCAO.md, seção 5: PrintWayy mantém o registro antigo desativado
-// junto do novo pro mesmo serial), prefere o que não estiver com status de desativação.
-// Best-effort: só visto na documentação, não confirmado contra um caso real de duplicata
-// ainda — se nenhum "vivo" for encontrado, cai no primeiro item mesmo assim.
-function pickActive(candidates: PrintwayyPrinter[]): PrintwayyPrinter {
-  return candidates.find((c) => !OFFLINE_API_STATUSES.has(c.status)) ?? candidates[0];
+// Lista as impressoras que a PrintWayy diz pertencer a UM customer — a fonte da
+// descoberta de equipamento novo. Só é chamada pra customer que o nosso próprio cadastro
+// já vinculou a um cliente (ver planDiscovery); nunca vira "importar o parque inteiro".
+//
+// Tenta primeiro o filtro no servidor (`?customer-id=`). Não há confirmação de que a API
+// suporta esse parâmetro — o único filtro documentado/testado é `serial-number` — então o
+// código detecta as duas formas de ele não funcionar: rejeição explícita (4xx) e a mais
+// traiçoeira, aceitar e ignorar, devolvendo o parque inteiro. Nos dois casos reinicia
+// varrendo tudo e filtrando aqui, o que dá o mesmo resultado correto — só caro.
+// Big O: O(páginas do customer) no caminho bom (1 página hoje), O(páginas do parque
+// inteiro) no fallback (~21 hoje, 100 por página).
+async function fetchCustomerPrinters(customerId: string): Promise<PrintwayyPrinter[]> {
+  const isMine = (p: PrintwayyPrinter) => p.customer?.id === customerId;
+  let found: PrintwayyPrinter[] = [];
+  let filter: string | null = customerId; // null = varredura do parque inteiro
+  let skip = 0;
+
+  for (let page = 0; page < MAX_PAGES; page++) {
+    let res: PrintersPage;
+    try {
+      res = await fetchPrintersPage(skip, filter);
+    } catch (e) {
+      // 4xx com o filtro ligado = parâmetro desconhecido. Recomeça sem ele. 5xx e erro de
+      // rede sobem e abortam a descoberta: lista parcial do parque levaria a "essa
+      // impressora não existe mais lá", conclusão que não temos como sustentar.
+      if (filter && e instanceof PrintwayyApiError && e.status < 500) {
+        filter = null;
+        skip = 0;
+        found = [];
+        continue;
+      }
+      throw e;
+    }
+    const data = res.data ?? [];
+    // Duas formas de o filtro não ter funcionado, ambas sem erro HTTP:
+    // (a) veio gente de outro customer = parâmetro ignorado;
+    // (b) veio vazio de primeira = parâmetro tratado como "não bate com nada". Vazio aqui
+    //     é impossível de verdade — só perguntamos por customer onde uma impressora
+    //     NOSSA já foi encontrada — então isso é sintoma, não resposta. Sem esta linha o
+    //     caso (b) viraria um "nenhuma impressora nova" silencioso, exatamente o
+    //     problema que a descoberta existe pra resolver.
+    const filtroFalhou = filter && (page === 0 ? !data.length || !data.every(isMine) : !data.every(isMine));
+    if (filtroFalhou) {
+      filter = null;
+      skip = 0;
+      found = [];
+      continue;
+    }
+    found = [...found, ...data.filter(isMine)];
+    skip += PAGE_SIZE;
+    if (!data.length || skip >= (res.count ?? 0)) break;
+  }
+  return found;
 }
 
-// Data em calendário de Brasília, não UTC — importante porque o botão "Sincronizar
-// agora" pode ser clicado a qualquer hora do dia (não só no horário fixo do cron).
-// Calcular em UTC faria uma leitura entre ~21h e 23h59 (horário de Brasília) cair na
-// data de amanhã. formatToParts em vez de parsear .format() evita depender do
-// separador exato que a locale devolve.
-function todayInBrazil(): string {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Sao_Paulo',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(new Date());
-  const get = (type: string) => parts.find((p) => p.type === type)?.value;
-  return `${get('year')}-${get('month')}-${get('day')}`;
+// Sem `date`: contador atual. Com `date` (AAAA-MM-DD): última captura até aquela data,
+// que é o número do relatório oficial de fechamento (ver toFechamentoRow).
+async function fetchCounters(printwayyId: string, date?: string): Promise<CounterEntry[]> {
+  const query = date ? `?date=${encodeURIComponent(date)}` : '';
+  return (await printwayyFetch(`/printers/${printwayyId}/counters${query}`)) as CounterEntry[];
 }
 
 // Pool de workers simples, sem dependência externa — limita quantas chamadas ficam em
@@ -163,65 +202,212 @@ async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T)
   return results;
 }
 
-// `cliente` vem do nosso próprio cadastro (fetchRegisteredPrinters), nunca do
-// customer.name da PrintWayy — precisa estar presente no payload (Postgres valida a
-// constraint not null da linha candidata em INSERT ... ON CONFLICT DO UPDATE antes
-// mesmo de checar se vai conflitar; omitir a coluna quebra mesmo quando a intenção é
-// só atualizar). Passar o valor já existente de volta é o jeito de satisfazer a
-// constraint sem de fato mudar o dado.
+// Escopo da atualização de contadores = o que já está cadastrado em `printers` (via
+// importação de planilha, cadastro manual do admin ou descoberta automática), nunca o
+// parque inteiro da PrintWayy.
 //
-// `local` e `departamento` também propositalmente fora do payload — mas por um motivo
-// diferente de `cliente`: as duas são nullable, então omitir a chave não esbarra no
-// problema do not null acima, só faz o upsert não tocar nelas mesmo (comportamento que
-// queremos). `local` é o ponto físico exato (ex: "ESF São Sebastião", "Recepção") e
-// `departamento` é a unidade administrativa (ex: "Secretaria Municipal de Saúde") —
-// ambos dado nosso, mantidos pelo admin, sem equivalente confiável na API:
-// `installationPoint` é o nome técnico da máquina ligada à impressora (ex:
-// "PC-RECEPCAO01"), não o nome do local/setor pro usuário. Escrever isso por cima do
-// dado real já causou confusão uma vez.
-function toPrinterRow(p: PrintwayyPrinter, cliente: string) {
-  return {
-    id: p.serialNumber.trim(),
-    cliente,
-    modelo: p.model || null,
-    ip: p.ipAddress || null,
-    conexao: CONEXAO_MAP[p.type] || null,
-    updated_at: new Date().toISOString(),
-  };
+// Paginado: o PostgREST corta a resposta no teto de linhas do projeto (padrão 1000) sem
+// sinalizar nada — devolveria as primeiras 1000 impressoras e o sync deixaria as demais
+// sem atualizar, silenciosamente. Hoje são dezenas, mas a descoberta automática cadastra
+// sozinha, então o número cresce sem ninguém apertar botão.
+// Devolve TODAS as linhas, inclusive as removidas do contrato (`removida_em`): o
+// chamador filtra pra sincronizar e usa a lista completa pra descoberta não recadastrar
+// equipamento que o admin tirou do contrato.
+// Big O: O(cadastradas / página) requisições.
+const DB_PAGE_SIZE = 1000;
+interface RegisteredRow extends RegisteredPrinter {
+  removida_em: string | null;
+}
+async function fetchRegisteredPrinters(adminClient: AdminClient): Promise<RegisteredRow[]> {
+  const pages: RegisteredRow[][] = [];
+  let from = 0;
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const { data, error } = await adminClient
+      .from('printers')
+      .select('id, cliente, removida_em')
+      .order('id', { ascending: true })
+      .range(from, from + DB_PAGE_SIZE - 1);
+    if (error) throw new Error(`Falha ao ler impressoras cadastradas: ${error.message}`);
+    const rows = (data ?? []) as RegisteredRow[];
+    if (!rows.length) break;
+    pages.push(rows);
+    from += rows.length;
+  }
+  return pages.flat();
 }
 
-function toReadingRow(p: PrintwayyPrinter, counters: CounterEntry[], today: string) {
-  // A3 (a3BlackAndWhite/a3Color) e os demais tipos (scan, colorLevelXCoverage) ficam
-  // de fora do total por decisão do produto — sem impressora A3 no parque hoje.
-  const pb = counters.find((c) => c.type === 'blackAndWhite')?.totalCount ?? null;
-  const color = counters.find((c) => c.type === 'color')?.totalCount ?? null;
-  const statusText = OFFLINE_API_STATUSES.has(p.status) ? STATUS_TEXT_OFFLINE : STATUS_TEXT_ONLINE;
-  return {
-    printer_id: p.serialNumber.trim(),
-    data: today,
-    contador_pb: pb,
-    contador_color: color,
-    status: statusText,
-    // Precisa estar no payload: o upsert é ON CONFLICT (printer_id, data) DO UPDATE e,
-    // como o sync grava sempre a MESMA data (hoje), toda sync depois da primeira do dia
-    // cai no UPDATE. Sem `imported_at` aqui, o timestamp ficava congelado no horário do
-    // primeiro sync do dia (o default now() só vale no INSERT), e a badge "Atualizado
-    // às HH:MMh" (max(imported_at) em computeLastSync) travava no 07h do primeiro cron.
-    imported_at: new Date().toISOString(),
-  };
+async function loadCustomerConfig(adminClient: AdminClient): Promise<Map<string, CustomerConfig>> {
+  const { data, error } = await adminClient
+    .from('printwayy_customers')
+    .select('printwayy_customer_id, cliente, auto_registrar');
+  if (error) throw new Error(`Falha ao ler o vínculo de clientes: ${error.message}`);
+  return new Map(((data ?? []) as CustomerConfig[]).map((c) => [c.printwayy_customer_id, c]));
 }
 
-// Escopo da sincronização = o que já está cadastrado em `printers` (via importação de
-// planilha ou cadastro manual do admin), nunca o parque inteiro da PrintWayy. É essa
-// lista que define quais clientes/impressoras a Cross realmente gerencia.
-async function fetchRegisteredPrinters(adminClient: ReturnType<typeof createClient>): Promise<RegisteredPrinter[]> {
-  const { data, error } = await adminClient.from('printers').select('id, cliente');
-  if (error) throw new Error(`Falha ao ler impressoras cadastradas: ${error.message}`);
-  return data ?? [];
+// Grava só vínculo NOVO (ver learnMappings) e devolve a tabela atualizada. Nunca altera
+// linha existente: o vínculo de um cliente já configurado é decisão do admin.
+async function learnCustomerMap(
+  adminClient: AdminClient,
+  resolved: ResolvedPrinter[],
+  config: Map<string, CustomerConfig>,
+): Promise<Map<string, CustomerConfig>> {
+  const rows = learnMappings(resolved, config);
+  if (!rows.length) return config;
+  const { error } = await adminClient
+    .from('printwayy_customers')
+    .upsert(rows, { onConflict: 'printwayy_customer_id', ignoreDuplicates: true });
+  if (error) throw new Error(`Falha ao gravar o vínculo de clientes: ${error.message}`);
+  return loadCustomerConfig(adminClient);
 }
 
-async function runSync(adminClient: ReturnType<typeof createClient>) {
-  const registered = await fetchRegisteredPrinters(adminClient);
+// Resolve cada serial cadastrado pro registro da PrintWayy, sem contador ainda: a
+// classificação contrato/fora depende do vínculo, que pode ser aprendido a partir desta
+// mesma lista (cliente novo, primeira sincronização).
+// Big O: O(cadastradas) chamadas, COUNTERS_CONCURRENCY em paralelo.
+async function resolveRegistered(registered: RegisteredPrinter[]) {
+  let notFound = 0;
+  let ambiguous = 0;
+  const resolved: ResolvedPrinter[] = await mapWithConcurrency(registered, COUNTERS_CONCURRENCY, async (reg) => {
+    try {
+      const matches = await fetchPrinterBySerial(reg.id);
+      if (!matches.length) {
+        notFound++;
+        // Não é erro: há equipamento do contrato sem monitoramento na PrintWayy, com
+        // contador lançado manualmente (situacao 'nao-encontrada'). Conta em notFound.
+        return { reg, printer: null, reading: null, error: null, situacao: 'nao-encontrada' as const };
+      }
+      if (matches.length > 1) ambiguous++;
+      return { reg, printer: pickActive(matches), reading: null, error: null };
+    } catch (e) {
+      const message = e instanceof PrintwayyApiError ? e.message : e instanceof Error ? e.message : String(e);
+      return { reg, printer: null, reading: null, error: message };
+    }
+  });
+  return { resolved, notFound, ambiguous };
+}
+
+// Grava a leitura de fechamento (contador histórico na data de corte) das impressoras do
+// contrato. Usada pelo sync normal, dentro da janela de fechamentoPendente, e pela ação
+// `fechamento`, que reprocessa datas passadas.
+// Big O: O(impressoras do contrato × datas) chamadas.
+async function writeFechamentos(
+  adminClient: AdminClient,
+  contrato: ResolvedPrinter[],
+  dates: string[],
+) {
+  const errors: Array<{ serialNumber: string; message: string }> = [];
+  const rows = [];
+  for (const date of dates) {
+    const batch = await mapWithConcurrency(contrato, COUNTERS_CONCURRENCY, async (r) => {
+      try {
+        return toFechamentoRow(r.printer!, await fetchCounters(r.printer!.id, date), date);
+      } catch (e) {
+        errors.push({ serialNumber: r.reg.id, message: `fechamento ${date}: ${e instanceof Error ? e.message : String(e)}` });
+        return null;
+      }
+    });
+    rows.push(...batch.filter((b) => b !== null));
+  }
+  if (rows.length) {
+    const { error } = await adminClient
+      .from('readings')
+      .upsert(rows, { onConflict: 'printer_id,data', ignoreDuplicates: false });
+    if (error) throw new Error(`Falha ao gravar leituras de fechamento: ${error.message}`);
+  }
+  return { rows, errors };
+}
+
+// Cadastra impressora que apareceu no PrintWayy dentro de um contrato que já é nosso —
+// é o que faz uma adição feita lá aparecer aqui sozinha.
+// Escopo: só customers observados NESTA execução com vínculo único (ver planDiscovery).
+// Se nenhuma impressora do contrato resolveu (API fora do ar, por exemplo), não há
+// observação e nada é criado — melhor não cadastrar do que cadastrar com `cliente`
+// chutado a partir de mapa velho.
+async function discoverNewPrinters(
+  adminClient: AdminClient,
+  observed: Map<string, ObservedCustomer>,
+  config: Map<string, CustomerConfig>,
+  registeredIds: Set<string>,
+  today: string,
+): Promise<DiscoveryOutcome> {
+  const { eligible, skipped } = planDiscovery(observed, config);
+  const discovered: string[] = [];
+  const errors: DiscoveryOutcome['errors'] = [];
+  let readingsWritten = 0;
+
+  for (const { customerId, cliente, label } of eligible) {
+    try {
+      const novas = selectNewPrinters(await fetchCustomerPrinters(customerId), registeredIds);
+      if (!novas.length) continue;
+
+      // ignoreDuplicates = INSERT ... ON CONFLICT DO NOTHING: a descoberta só CRIA linha,
+      // nunca sobrescreve uma existente — nem numa corrida com outra execução do sync.
+      // `local` e `departamento` nascem vazios de propósito: são dado nosso, o admin
+      // preenche depois (botão "Impressora" do Painel, com o mesmo serial).
+      const { error: insertError } = await adminClient
+        .from('printers')
+        .upsert(novas.map((p) => toPrinterRow(p, cliente)), { onConflict: 'id', ignoreDuplicates: true });
+      if (insertError) throw new Error(insertError.message);
+
+      // Primeira leitura já nesta execução: sem ela a impressora nova ficaria "sem dados"
+      // no painel até o próximo sync.
+      const readings = await mapWithConcurrency(novas, COUNTERS_CONCURRENCY, async (p) => {
+        try {
+          return toReadingRow(p, await fetchCounters(p.id), today);
+        } catch (e) {
+          errors.push({ serialNumber: p.serialNumber.trim(), message: e instanceof Error ? e.message : String(e) });
+          return null;
+        }
+      });
+      const payload = readings.filter((r) => r !== null);
+      if (payload.length) {
+        const { error } = await adminClient
+          .from('readings')
+          .upsert(payload, { onConflict: 'printer_id,data', ignoreDuplicates: false });
+        if (error) throw new Error(error.message);
+        readingsWritten += payload.length;
+      }
+      discovered.push(...novas.map((p) => p.serialNumber.trim()));
+    } catch (e) {
+      errors.push({ serialNumber: `contrato ${label}`, message: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
+  return { discovered, readings: readingsWritten, skipped, errors };
+}
+
+// Etapa comum ao sync e à ação `fechamento`: cadastro ativo → registro na PrintWayy →
+// vínculo (aprende se faltar) → situação de cada impressora.
+async function prepare(adminClient: AdminClient) {
+  const all = await fetchRegisteredPrinters(adminClient);
+  // Removida do contrato = fora do escopo do sync (o histórico fica no banco).
+  const registered = all.filter((r) => !r.removida_em);
+  const { resolved, notFound, ambiguous } = await resolveRegistered(registered);
+  const config = await learnCustomerMap(adminClient, resolved, await loadCustomerConfig(adminClient));
+  for (const r of resolved) {
+    if (r.printer) r.situacao = classifyPrinter(r.printer, r.reg, config);
+  }
+  return { all, registered, resolved, config, notFound, ambiguous };
+}
+
+// Grava situação/metadata em `printers`. Duas chamadas com payload de chaves uniformes:
+// o upsert em lote do supabase-js usa a união das chaves e preencheria com NULL a
+// coluna ausente numa linha. Isso apagaria a última comunicação das impressoras fora do
+// contrato.
+async function writePrinterRows(adminClient: AdminClient, resolved: ResolvedPrinter[]) {
+  const contrato = resolved.filter((r) => r.situacao === 'contrato').map((r) => toPrinterRow(r.printer!, r.reg.cliente));
+  const outras = resolved
+    .filter((r) => r.situacao && r.situacao !== 'contrato')
+    .map((r) => toSituacaoRow(r.reg, r.situacao!));
+  for (const payload of [contrato, outras]) {
+    if (!payload.length) continue;
+    const { error } = await adminClient.from('printers').upsert(payload, { onConflict: 'id' });
+    if (error) throw new Error(`Falha ao atualizar impressoras: ${error.message}`);
+  }
+}
+
+async function runSync(adminClient: AdminClient) {
+  const { all, registered, resolved, config, notFound, ambiguous } = await prepare(adminClient);
   if (!registered.length) {
     return {
       success: true,
@@ -229,50 +415,35 @@ async function runSync(adminClient: ReturnType<typeof createClient>) {
       notFoundInPrintwayy: 0,
       ambiguous: 0,
       synced: 0,
+      discovered: 0,
+      discoveredSerials: [] as string[],
+      discoverySkipped: [] as SkippedCustomer[],
       failed: 0,
       errors: [] as Array<{ serialNumber: string; message: string }>,
+      // A descoberta automática se apoia no cadastro pra saber a qual cliente uma
+      // impressora nova pertence — com o cadastro vazio ela não tem de onde partir.
       message: 'Nenhuma impressora cadastrada — cadastre ao menos uma (planilha ou manual) antes de sincronizar.',
     };
   }
 
   const today = todayInBrazil();
-  let notFoundInPrintwayy = 0;
-  let ambiguous = 0;
 
-  // Big O: O(impressoras cadastradas por nós) chamadas de resolução por serial +
-  // O(mesma quantidade) chamadas de /counters — cresce só com o que a Cross gerencia,
-  // nunca com o tamanho do parque total visível pela API key (era O(parque inteiro)
-  // antes).
-  // Cada impressora isolada em try/catch: uma falha não derruba a sincronização das
-  // outras.
-  const results = await mapWithConcurrency(registered, COUNTERS_CONCURRENCY, async (reg) => {
+  // Fase 1 — contador atual SÓ das impressoras do contrato. Fora do contrato (movida na
+  // PrintWayy pra outro customer/estoque) fica sem leitura nova: o contador congela no
+  // último valor do contrato, como no relatório oficial.
+  // Big O: O(impressoras do contrato) chamadas de /counters.
+  const contrato = resolved.filter((r) => r.situacao === 'contrato');
+  await mapWithConcurrency(contrato, COUNTERS_CONCURRENCY, async (r) => {
     try {
-      const matches = await fetchPrinterBySerial(reg.id);
-      if (!matches.length) {
-        notFoundInPrintwayy++;
-        return { reg, printer: null as PrintwayyPrinter | null, reading: null, error: 'Serial não encontrado no PrintWayy.' };
-      }
-      if (matches.length > 1) ambiguous++;
-      const printer = pickActive(matches);
-      const counters = await fetchCounters(printer.id);
-      return { reg, printer, reading: toReadingRow(printer, counters, today), error: null as string | null };
+      r.reading = toReadingRow(r.printer!, await fetchCounters(r.printer!.id), today);
     } catch (e) {
-      const message = e instanceof PrintwayyApiError ? e.message : e instanceof Error ? e.message : String(e);
-      return { reg, printer: null as PrintwayyPrinter | null, reading: null, error: message };
+      r.error = e instanceof Error ? e.message : String(e);
     }
   });
 
-  // Atualiza só metadata (modelo/ip/local/conexao) das linhas que já existem — nunca
-  // insere linha nova aqui (quem cria linha nova em `printers` é a importação de
-  // planilha ou um cadastro manual do admin, nunca o sync). `cliente` não entra no
-  // payload, então o upsert não toca essa coluna.
-  const printersPayload = results.filter((r) => r.printer).map((r) => toPrinterRow(r.printer!, r.reg.cliente));
-  if (printersPayload.length) {
-    const { error } = await adminClient.from('printers').upsert(printersPayload, { onConflict: 'id' });
-    if (error) throw new Error(`Falha ao atualizar impressoras: ${error.message}`);
-  }
+  await writePrinterRows(adminClient, resolved);
 
-  const readingsPayload = results.filter((r) => r.reading).map((r) => r.reading!);
+  const readingsPayload = resolved.filter((r) => r.reading).map((r) => r.reading!);
   if (readingsPayload.length) {
     const { error } = await adminClient
       .from('readings')
@@ -280,16 +451,107 @@ async function runSync(adminClient: ReturnType<typeof createClient>) {
     if (error) throw new Error(`Falha ao gravar leituras: ${error.message}`);
   }
 
-  const errors = results.filter((r) => r.error).map((r) => ({ serialNumber: r.reg.id, message: r.error! }));
+  // Fase 1b — leitura de fechamento (dia de corte do contrato), regravada a cada execução
+  // dentro da janela pra absorver captura atrasada. Roda DEPOIS da leitura atual porque,
+  // no próprio dia de corte, as duas caem na mesma linha (printer_id, data) e o valor
+  // histórico é o que vale.
+  const fechamento = fechamentoPendente(today);
+  let fechamentoErrors: Array<{ serialNumber: string; message: string }> = [];
+  let fechamentoGravadas = 0;
+  if (fechamento) {
+    const out = await writeFechamentos(adminClient, contrato.filter((r) => !r.error), [fechamento]);
+    fechamentoErrors = out.errors;
+    fechamentoGravadas = out.rows.length;
+  }
+
+  // Fase 2 — impressora que existe no PrintWayy mas ainda não no nosso cadastro. Isolada
+  // em try/catch: a atualização de contadores acima já foi gravada e não pode ser perdida
+  // porque a descoberta falhou. Só observa customer de impressora DO CONTRATO: uma
+  // impressora movida pra outra prefeitura não pode abrir a porta pro parque de lá.
+  let discovery: DiscoveryOutcome = { discovered: [], readings: 0, skipped: [], errors: [] };
+  try {
+    const registeredIds = new Set(all.map((r) => r.id.trim()));
+    discovery = await discoverNewPrinters(adminClient, observeCustomers(contrato), config, registeredIds, today);
+  } catch (e) {
+    discovery = {
+      ...discovery,
+      errors: [{ serialNumber: 'descoberta de impressoras novas', message: e instanceof Error ? e.message : String(e) }],
+    };
+  }
+
+  const errors = resolved.filter((r) => r.error).map((r) => ({ serialNumber: r.reg.id, message: r.error! }));
   return {
     success: true,
     totalRegistered: registered.length,
-    notFoundInPrintwayy,
+    notFoundInPrintwayy: notFound,
     ambiguous,
-    synced: readingsPayload.length,
-    failed: errors.length,
+    synced: readingsPayload.length + discovery.readings,
+    // Seriais congelados por estarem fora do contrato na PrintWayy — o admin precisa
+    // saber, porque normalmente significa troca/remanejamento de equipamento.
+    foraDoContrato: resolved.filter((r) => r.situacao === 'fora-do-contrato').map((r) => r.reg.id),
+    fechamento: fechamento ? { data: fechamento, gravadas: fechamentoGravadas } : null,
+    discovered: discovery.discovered.length,
+    discoveredSerials: discovery.discovered,
+    discoverySkipped: discovery.skipped,
+    failed: errors.length + discovery.errors.length + fechamentoErrors.length,
+    errors: [...errors, ...fechamentoErrors, ...discovery.errors],
+  };
+}
+
+// Ação `fechamento`: reprocessa leituras de fechamento de datas passadas (backfill ou
+// correção). Mesmo escopo do sync: só impressora ativa e dentro do contrato.
+// Devolve o valor gravado por serial e data, pra conferência contra o relatório oficial.
+async function runFechamento(adminClient: AdminClient, dates: string[]) {
+  const { resolved } = await prepare(adminClient);
+  await writePrinterRows(adminClient, resolved);
+  const contrato = resolved.filter((r) => r.situacao === 'contrato');
+  const { rows, errors } = await writeFechamentos(adminClient, contrato, dates);
+  return {
+    success: true,
+    dates,
+    gravadas: rows.length,
+    leituras: rows.map((r) => ({ serial: r.printer_id, data: r.data, contador_pb: r.contador_pb })),
+    foraDoContrato: resolved.filter((r) => r.situacao === 'fora-do-contrato').map((r) => r.reg.id),
+    naoEncontradas: resolved.filter((r) => r.situacao === 'nao-encontrada').map((r) => r.reg.id),
     errors,
   };
+}
+
+// Captura uma chamada da API sem lançar: o diagnóstico quer ver também o erro (status +
+// corpo), porque "a API recusa esse parâmetro" é informação, não falha.
+async function rawCall(path: string): Promise<{ path: string; status: number; body: unknown }> {
+  try {
+    const res = await fetch(`${PRINTWAYY_BASE}${path}`, {
+      headers: { 'printwayy-key': PRINTWAYY_API_KEY! },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+    return { path, status: res.status, body: await safeJson(res) };
+  } catch (e) {
+    return { path, status: 0, body: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+// Diagnóstico somente-leitura: devolve o JSON BRUTO que a PrintWayy tem pra cada serial
+// (todos os registros do serial, detalhe, contador atual e contador histórico em cada
+// data pedida). Existe pra descobrir campos que a API não documenta publicamente
+// (última comunicação, congelamento, fechamento) a partir do dado real — não grava nada.
+// `serials`: seriais a inspecionar (máx. INSPECT_MAX_SERIALS); `dates`: datas AAAA-MM-DD
+// pro parâmetro `date=` de /counters.
+// Big O: O(serials × (registros do serial × (2 + datas))) chamadas, sequenciais.
+async function runInspect(serials: string[], dates: string[]) {
+  const out = [];
+  for (const serial of serials.slice(0, INSPECT_MAX_SERIALS)) {
+    const search = await rawCall(`/printers?serial-number=${encodeURIComponent(serial)}`);
+    const records = ((search.body as PrintersPage | null)?.data ?? []) as PrintwayyPrinter[];
+    const detail = [];
+    for (const rec of records) {
+      const calls = [await rawCall(`/printers/${rec.id}`), await rawCall(`/printers/${rec.id}/counters`)];
+      for (const d of dates) calls.push(await rawCall(`/printers/${rec.id}/counters?date=${encodeURIComponent(d)}`));
+      detail.push({ printwayyId: rec.id, calls });
+    }
+    out.push({ serial, search, detail });
+  }
+  return out;
 }
 
 Deno.serve(async (req) => {
@@ -334,10 +596,22 @@ Deno.serve(async (req) => {
     // Corpo vazio (ex: chamada do cron sem body) é aceitável, cai no action default.
   }
   const action = (body.action as string) || 'sync';
-  if (action !== 'sync') return json({ error: 'Ação desconhecida.' }, 400);
+
+  if (action === 'inspect') {
+    const serials = Array.isArray(body.serials) ? body.serials.map(String) : [];
+    const dates = Array.isArray(body.dates) ? body.dates.map(String).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)) : [];
+    if (!serials.length) return json({ error: 'Informe ao menos um serial em `serials`.' }, 400);
+    return json({ inspect: await runInspect(serials, dates), triggeredBy: callerLabel });
+  }
+  if (action !== 'sync' && action !== 'fechamento') return json({ error: 'Ação desconhecida.' }, 400);
 
   const adminClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
   try {
+    if (action === 'fechamento') {
+      const dates = Array.isArray(body.dates) ? body.dates.map(String).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)) : [];
+      if (!dates.length) return json({ error: 'Informe as datas de fechamento em `dates` (AAAA-MM-DD).' }, 400);
+      return json({ ...(await runFechamento(adminClient, dates)), triggeredBy: callerLabel });
+    }
     const result = await runSync(adminClient);
     return json({ ...result, triggeredBy: callerLabel });
   } catch (e) {
