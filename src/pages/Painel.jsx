@@ -558,7 +558,7 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
           {semMonitoramentoList.length > 0 && (
             <PrinterIssueList
               title="Impressoras sem monitoramento de páginas"
-              subtitle="Contador zerado — o PrintWayy não está recebendo leitura de páginas dessas impressoras, mesmo comunicando. Clique numa linha para ver o histórico."
+              subtitle="Sem cadastro no PrintWayy (contador lançado manualmente) ou contador zerado (comunica, mas o PrintWayy não recebe leitura de páginas). Clique numa linha para ver o histórico."
               items={semMonitoramentoList}
               total={kpis.total}
               accent={ORANGE}
