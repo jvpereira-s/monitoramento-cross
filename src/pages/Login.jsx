@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import CrossMark from '../components/CrossMark';
 import { signInWithUsername } from '../lib/auth';
-import { ORANGE, TEAL, INK, MUTED, DANGER } from '../lib/theme';
+import { INK, MUTED, DANGER, NAVY, ACTION } from '../lib/theme';
 
 // Carregado sob demanda: three.js + d3-geo são a maior dependência do projeto e servem
 // só pra este enfeite. Com lazy, quem abre o sistema no celular (onde o globo nem
@@ -11,7 +11,7 @@ import { ORANGE, TEAL, INK, MUTED, DANGER } from '../lib/theme';
 const Globe = lazy(() => import('../components/Globe'));
 
 // Mesmo breakpoint de src/index.css (.cx-login-side { display: none }) — evita
-// inicializar WebGL/three.js e buscar o GeoJSON à toa quando o painel laranja nem
+// inicializar WebGL/three.js e buscar o GeoJSON à toa quando o painel marinho nem
 // aparece na tela (mobile).
 const SHOW_GLOBE_QUERY = '(min-width: 761px)';
 
@@ -57,50 +57,64 @@ export default function Login() {
     if (e.key === 'Enter') submit();
   }
 
+  // Mesmo desenho da tela de acesso da equipe (site/suporte/index.html) e do site
+  // institucional: formulário à esquerda, painel marinho à direita, IBM Plex Sans,
+  // botão de ação em ACTION. Ver src/lib/theme.js.
   return (
     <div style={{ minHeight: '100vh', display: 'flex' }}>
-      <div style={{ flex: '1 1 420px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, background: '#fff' }}>
-        <div style={{ width: '100%', maxWidth: 320 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 36 }}>
-            <CrossMark size={42} />
-            <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 14, letterSpacing: '0.08em', color: INK }}>
-              CROSS SOLUÇÕES
+      <main style={{ flex: '1 1 420px', display: 'flex', flexDirection: 'column', padding: 24, background: '#fff' }}>
+        <a href="/" className="cx-voltar">← crosssolucoes.com.br</a>
+        <div style={{ width: '100%', maxWidth: 340, margin: 'auto', padding: '32px 0' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 40 }}>
+            <CrossMark size={44} />
+            <div style={{ lineHeight: 1.15 }}>
+              <div style={{ fontWeight: 600, fontSize: 17, color: INK }}>Cross Soluções</div>
+              <div style={{ fontSize: 12.5, color: MUTED, marginTop: 2 }}>Monitoramento de impressões</div>
             </div>
           </div>
-          <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 22, color: INK, marginBottom: 4 }}>
+          <h1 style={{ fontWeight: 600, fontSize: 26, letterSpacing: '-0.015em', color: INK, margin: '0 0 6px' }}>
             Entrar no painel
+          </h1>
+          <div style={{ fontSize: 14.5, color: MUTED, marginBottom: 28 }}>
+            Use o usuário e a senha fornecidos pela Cross.
           </div>
-          <div style={{ fontSize: 13, color: MUTED, marginBottom: 26 }}>
-            Monitoramento de impressoras. Preencha os campos abaixo.
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div>
-              <label style={{ fontSize: 12, color: MUTED, display: 'block', marginBottom: 4 }}>Usuário</label>
-              <input className="cx-input" style={{ width: '100%' }} placeholder="seu.usuario" value={username} autoFocus
-                onKeyDown={onKeyDown} onChange={(e) => setUsername(e.target.value)} />
+              <label htmlFor="login-usuario" style={{ fontSize: 14, fontWeight: 600, color: INK, display: 'block', marginBottom: 6 }}>Usuário</label>
+              <input id="login-usuario" className="cx-input" style={{ width: '100%', minHeight: 46, fontSize: 15 }} placeholder="seu.usuario" value={username} autoFocus
+                autoComplete="username" onKeyDown={onKeyDown} onChange={(e) => setUsername(e.target.value)} />
             </div>
             <div>
-              <label style={{ fontSize: 12, color: MUTED, display: 'block', marginBottom: 4 }}>Senha</label>
-              <input className="cx-input" style={{ width: '100%' }} type="password" placeholder="••••••••" value={password}
-                onKeyDown={onKeyDown} onChange={(e) => setPassword(e.target.value)} />
+              <label htmlFor="login-senha" style={{ fontSize: 14, fontWeight: 600, color: INK, display: 'block', marginBottom: 6 }}>Senha</label>
+              <input id="login-senha" className="cx-input" style={{ width: '100%', minHeight: 46, fontSize: 15 }} type="password" placeholder="••••••••" value={password}
+                autoComplete="current-password" onKeyDown={onKeyDown} onChange={(e) => setPassword(e.target.value)} />
             </div>
             {error && (
-              <div style={{ fontSize: 12.5, color: DANGER, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <AlertTriangle size={13} /> {error}
+              <div role="alert" style={{ fontSize: 13.5, color: DANGER, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <AlertTriangle size={14} /> {error}
               </div>
             )}
             <button type="button" onClick={submit} disabled={busy} className="cx-btn"
-              style={{ background: TEAL, color: '#fff', padding: '12px 0', fontSize: 14.5, marginTop: 6 }}>
+              style={{ background: ACTION, color: '#fff', minHeight: 46, fontSize: 15, marginTop: 6 }}>
               {busy ? 'Entrando...' : 'Entrar'}
             </button>
           </div>
+          <div style={{ marginTop: 32, paddingTop: 18, borderTop: '1px solid #DDE2E9', fontSize: 13.5, color: MUTED }}>
+            Problema com equipamento? <a href="/chamados/" style={{ color: ACTION, fontWeight: 600 }}>Abrir chamado</a>
+          </div>
         </div>
-      </div>
-      <div className="cx-login-side" style={{ flex: '1 1 480px', background: ORANGE, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 40, color: '#fff', position: 'relative' }}>
-        <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 22, textAlign: 'center', maxWidth: 340, lineHeight: 1.35, marginBottom: 28 }}>
-          Visibilidade completa do parque de impressão.
+      </main>
+      <aside className="cx-login-side" aria-label="Sobre o monitoramento" style={{ flex: '1 1 480px', background: NAVY, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: 48, color: '#C9D2DE', position: 'relative' }}>
+        <div>
+          <div style={{ fontWeight: 600, fontSize: 30, letterSpacing: '-0.015em', lineHeight: 1.2, color: '#fff', maxWidth: 380 }}>
+            Monitoramento de impressões
+          </div>
+          <div style={{ marginTop: 14, fontSize: 15.5, lineHeight: 1.6, maxWidth: 400 }}>
+            Situação das impressoras do contrato e relatório de páginas por período, com
+            exportação em PDF, Excel e CSV.
+          </div>
         </div>
-        <div style={{ width: '100%', maxWidth: 280, aspectRatio: '1' }}>
+        <div style={{ width: '100%', maxWidth: 300, aspectRatio: '1', alignSelf: 'center' }}>
           {showGlobe && (
             // fallback null: é decoração. Um "carregando" no lugar do globo chamaria mais
             // atenção pra ausência dele do que a ausência em si.
@@ -120,10 +134,10 @@ export default function Login() {
             </Suspense>
           )}
         </div>
-        <div style={{ marginTop: 22, fontSize: 11.5, color: 'rgba(255,255,255,0.65)', textAlign: 'center' }}>
-          © 2026 Cross. Todos os direitos reservados.
+        <div style={{ fontSize: 13 }}>
+          © 2026 Cross Soluções · CNPJ 65.404.622/0001-20
         </div>
-      </div>
+      </aside>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { X, AlertTriangle } from 'lucide-react';
 import { saveImport } from '../lib/db';
-import { MUTED, TEAL, DANGER, LINE, ORANGE } from '../lib/theme';
+import { MUTED, DANGER, LINE, ACTION } from '../lib/theme';
 
 const EMPTY_FORM = { id: '', cliente: '', modelo: '', ip: '', departamento: '', local: '', conexao: '' };
 
@@ -137,7 +137,7 @@ export default function RegisterPrinterModal({ existingPrinters, knownClients, k
             Cancelar
           </button>
           <button type="button" className="cx-btn" onClick={handleSubmit} disabled={busy}
-            style={{ background: duplicate ? ORANGE : TEAL, color: '#fff', padding: '8px 16px', fontSize: 13 }}>
+            style={{ background: duplicate ? DANGER : ACTION, color: '#fff', padding: '8px 16px', fontSize: 13 }}>
             {busy ? 'Salvando...' : duplicate ? 'Sobrescrever e salvar' : 'Cadastrar'}
           </button>
         </div>

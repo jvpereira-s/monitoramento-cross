@@ -110,7 +110,7 @@ leitura somente do próprio contrato).
   contrato inexistente, visitante sem login e admin (contraprova — sem ela, uma RLS
   quebrada demais passaria nos outros três).
 
-**Testes**: `npm test` (vitest, 86 testes), `npm run test:coverage` (falha abaixo de 80%
+**Testes**: `npm test` (vitest, 116 testes), `npm run test:coverage` (falha abaixo de 80%
 em qualquer métrica). Cobertura medida só sobre `report.js`, `printerStats.js`,
 `importPrinters.js`, `mapping.js` e `ErrorBoundary.jsx` — `db`/`auth`/`users`/
 `printwayySync` são camada de I/O e exigiriam teste de integração, não unitário; incluí-los
@@ -123,6 +123,13 @@ regressão: fronteira do mês fechado, precedência offline × contador zerado, 
 (`xlsx`, `papaparse`, `exceljs`) são todas carregadas sob demanda. Quem abre o login baixa
 ~121 kB gzip, não os ~503 kB de antes — não desfazer esses `lazy`/`import()` dinâmicos sem
 medir o custo no bundle.
+- `site/` — site institucional da raiz do domínio (HTML estático, sem build): home,
+  `/chamados/` (formulário → `enviar.php`, que fica só no servidor) e a tela de acesso da
+  equipe ao GLPI (`/suporte/index.html`, dentro da pasta do GLPI). Redesenhado em 09/10/2026
+  com a mesma identidade do sistema: marinho `#0E2240`, cinza, laranja Cross só como acento
+  (texto branco sobre `#E8720C` dá 3,07:1 — botão usa `ACTION` `#B4520A`), IBM Plex Sans
+  hospedada localmente. Contratos que não podem mudar, origem das fotos e deploy em
+  `site/README.md`.
 - `supabase/migrations/` — schema do banco, aplicado manualmente via SQL Editor, em
   ordem numérica. Mudança de schema = nova migration numerada, nunca editar uma já
   aplicada em produção.

@@ -1,6 +1,6 @@
 import { LayoutDashboard, FileText, Users, LogOut, ShieldCheck } from 'lucide-react';
 import CrossMark from './CrossMark';
-import { ORANGE, TEAL, DANGER, INK } from '../lib/theme';
+import { ORANGE, TEAL, DANGER, NAVY } from '../lib/theme';
 
 export default function AppShell({
   profile,
@@ -16,10 +16,10 @@ export default function AppShell({
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
       {isAdmin && (
-        <aside className="no-print" style={{ width: 200, flexShrink: 0, background: '#FAFAF9', borderRight: '1px solid #E5E5E5', padding: '20px 14px', display: 'flex', flexDirection: 'column' }}>
+        <aside className="no-print" style={{ width: 200, flexShrink: 0, background: '#F7F8FA', borderRight: '1px solid #DDE2E9', padding: '20px 14px', display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 30, paddingLeft: 4 }}>
             <CrossMark size={30} />
-            <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 12.5, letterSpacing: '0.05em' }}>CROSS</div>
+            <div style={{ fontWeight: 600, fontSize: 14.5, lineHeight: 1.15, color: NAVY }}>Cross<br />Soluções</div>
           </div>
           <nav style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
             <button className={`cx-nav-item ${view === 'dashboard' || view === 'mapping' ? 'active' : ''}`} onClick={() => onViewChange('dashboard')}>
@@ -36,7 +36,7 @@ export default function AppShell({
       )}
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-        <header className="no-print" style={{ background: INK, color: '#fff', padding: '13px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+        <header className="no-print" style={{ background: NAVY, color: '#fff', padding: '13px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             {!isAdmin && <CrossMark size={26} />}
             <div style={{ fontSize: 14, fontWeight: 600 }}>{title}</div>
@@ -67,13 +67,13 @@ export default function AppShell({
         </header>
 
         {!isAdmin && (
-          <div className="no-print" style={{ display: 'flex', gap: 4, borderBottom: '1px solid #E5E5E5', padding: '0 26px', background: '#fff' }}>
+          <div className="no-print" style={{ display: 'flex', gap: 4, borderBottom: '1px solid #DDE2E9', padding: '0 26px', background: '#fff' }}>
             <button className={`cx-tab ${view !== 'relatorio' ? 'active' : ''}`} onClick={() => onViewChange('dashboard')}>Painel</button>
             <button className={`cx-tab ${view === 'relatorio' ? 'active' : ''}`} onClick={() => onViewChange('relatorio')}>Relatório</button>
           </div>
         )}
 
-        <div style={{ padding: '22px 26px', flex: 1 }}>{children}</div>
+        <main style={{ padding: '22px 26px', flex: 1 }}>{children}</main>
       </div>
     </div>
   );

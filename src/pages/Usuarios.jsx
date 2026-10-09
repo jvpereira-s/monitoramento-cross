@@ -3,7 +3,7 @@ import { AlertTriangle, X, UserPlus, KeyRound, Trash2 } from 'lucide-react';
 import AppShell from '../components/AppShell';
 import { fetchUsers, createUser, deleteUser, resetUserPassword } from '../lib/users';
 import { DEFAULT_CLIENT } from '../lib/importPrinters';
-import { MUTED, TEAL, DANGER, LINE } from '../lib/theme';
+import { MUTED, DANGER, LINE, ACTION } from '../lib/theme';
 
 const EMPTY_FORM = { username: '', password: '', role: 'cliente', cliente_associado: DEFAULT_CLIENT };
 
@@ -114,7 +114,7 @@ export default function Usuarios({ profile, isAdmin, onNavigate, onLogout }) {
                           <input type="password" className="cx-input" placeholder="Nova senha" value={newPassword}
                             onChange={(e) => setNewPassword(e.target.value)} style={{ width: 140, padding: '4px 8px', fontSize: 12.5 }} />
                           <button className="cx-btn" onClick={() => handleResetPassword(u.id)} disabled={busy}
-                            style={{ background: TEAL, color: '#fff', padding: '4px 10px', fontSize: 12 }}>
+                            style={{ background: ACTION, color: '#fff', padding: '4px 10px', fontSize: 12 }}>
                             Salvar
                           </button>
                           <button className="cx-btn" onClick={() => { setPasswordRowId(null); setNewPassword(''); }} disabled={busy}
@@ -190,7 +190,7 @@ export default function Usuarios({ profile, isAdmin, onNavigate, onLogout }) {
             </div>
           )}
           <button className="cx-btn" onClick={handleCreate} disabled={busy}
-            style={{ background: TEAL, color: '#fff', padding: '9px 16px', fontSize: 13.5 }}>
+            style={{ background: ACTION, color: '#fff', padding: '9px 16px', fontSize: 13.5 }}>
             {busy ? 'Criando...' : 'Criar conta'}
           </button>
         </div>

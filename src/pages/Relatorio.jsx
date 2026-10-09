@@ -10,7 +10,7 @@ import {
 } from '../lib/report';
 import { computeLastSync } from '../lib/printerStats';
 import { exportReportCSV, exportReportExcel, exportReportPDF } from '../lib/reportExport';
-import { ORANGE, MUTED, LINE } from '../lib/theme';
+import { ORANGE, MUTED, LINE, ACTION, NAVY, NAVY_SOFT } from '../lib/theme';
 
 // Abre no último ciclo FECHADO (dia 02 a dia 02): é o período do relatório oficial do
 // contrato. "Últimos 30 dias" nunca coincidia com ele.
@@ -127,7 +127,7 @@ export default function Relatorio({ profile, isAdmin, onNavigate, onLogout }) {
               <input type="date" className="cx-input" value={reportEnd} onChange={(e) => setReportEnd(e.target.value)} />
             </div>
             <button className="cx-btn" onClick={handleExportPDF}
-              style={{ background: ORANGE, color: '#fff', padding: '9px 16px', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
+              style={{ background: ACTION, color: '#fff', padding: '9px 16px', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
               <FileText size={14} /> PDF
             </button>
             <button className="cx-btn" onClick={handleExportExcel}
@@ -150,7 +150,7 @@ export default function Relatorio({ profile, isAdmin, onNavigate, onLogout }) {
                 <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
                   <CrossMark size={54} />
                   <div>
-                    <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 17, letterSpacing: '0.03em' }}>CROSS SOLUÇÕES</div>
+                    <div style={{ fontWeight: 600, fontSize: 18, letterSpacing: '-0.01em', color: NAVY }}>Cross Soluções</div>
                     <div style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>Inovações contínuas na computação e na prestação de serviços</div>
                     <div style={{ fontSize: 11, color: MUTED }}>CNPJ 65.404.622/0001-20 · Inscrição Estadual 084.818.99-9</div>
                   </div>
@@ -163,7 +163,7 @@ export default function Relatorio({ profile, isAdmin, onNavigate, onLogout }) {
               </div>
 
               <div style={{ textAlign: 'center', marginBottom: 22 }}>
-                <h2 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 20, margin: '0 0 4px' }}>
+                <h2 style={{ fontWeight: 600, fontSize: 21, letterSpacing: '-0.01em', color: NAVY, margin: '0 0 4px' }}>
                   Relatório de Impressões
                 </h2>
                 <div style={{ fontSize: 13, color: MUTED }}>
@@ -214,9 +214,9 @@ export default function Relatorio({ profile, isAdmin, onNavigate, onLogout }) {
                       </td>
                     </tr>
                   ))}
-                  <tr style={{ background: '#FCE9D8' }}>
+                  <tr style={{ background: NAVY_SOFT }}>
                     <td colSpan={6} style={{ fontWeight: 700, textAlign: 'right' }}>Total geral de impressões</td>
-                    <td className="mono" style={{ textAlign: 'right', fontWeight: 700, color: '#C25F09' }}>
+                    <td className="mono" style={{ textAlign: 'right', fontWeight: 700, color: NAVY }}>
                       {reportTotals.pb.toLocaleString('pt-BR')}
                     </td>
                   </tr>
@@ -239,7 +239,7 @@ export default function Relatorio({ profile, isAdmin, onNavigate, onLogout }) {
               )}
 
               <div style={{ marginTop: 28, paddingTop: 14, borderTop: `1px solid ${LINE}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10.5, color: MUTED, flexWrap: 'wrap', gap: 8 }}>
-                <span>CROSS Soluções · Monitoramento de impressão · Documento gerado automaticamente</span>
+                <span>Cross Soluções · Monitoramento de impressões · Documento gerado automaticamente</span>
                 <span>crosssolucoes@outlook.com · (27) 99693-8793</span>
               </div>
             </div>

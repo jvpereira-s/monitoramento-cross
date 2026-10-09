@@ -18,7 +18,7 @@ import {
   computeConexaoData,
 } from '../lib/printerStats';
 import { computeMonthlyTotals, computeTopConsumo, computeTopClientes, formatDateBR, formatDateTimeBR } from '../lib/report';
-import { ORANGE, TEAL, INK, MUTED, DANGER, LINE } from '../lib/theme';
+import { ORANGE, TEAL, INK, MUTED, DANGER, LINE, ACTION, NAVY_BUTTON } from '../lib/theme';
 
 // Há quanto tempo a impressora está no estado. `offlineDays`/`zeroDays` contam desde o
 // primeiro dia da sequência, não desde a última leitura — como o sync grava uma leitura
@@ -180,7 +180,7 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
 
   function exportCSV() {
     const companyRows = [
-      ['CROSS SOLUÇÕES'],
+      ['Cross Soluções'],
       ['Inovações contínuas na computação e na prestação de serviços'],
       ['CNPJ 65.404.622/0001-20 · Inscrição Estadual 084.818.99-9'],
       ['Av. Raphael Barbosa Brhaim, 847, Guriri Norte, São Mateus – ES · (27) 99693-8793 · crosssolucoes@outlook.com'],
@@ -316,10 +316,10 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
         <Settings size={14} /> Ajustes
       </button>
       <button className="cx-btn" onClick={handleSync} disabled={syncing}
-        style={{ background: TEAL, color: '#fff', padding: '7px 13px', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5 }}>
+        style={{ background: NAVY_BUTTON, color: '#fff', padding: '7px 13px', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5 }}>
         <RefreshCw size={14} /> {syncing ? 'Sincronizando...' : 'Sincronizar agora'}
       </button>
-      <label className="cx-btn" style={{ background: ORANGE, color: '#fff', padding: '7px 13px', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, cursor: 'pointer' }}>
+      <label className="cx-btn" style={{ background: ACTION, color: '#fff', padding: '7px 13px', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, cursor: 'pointer' }}>
         <Upload size={14} /> Importar
         <input type="file" accept=".csv,.xlsx,.xls" onChange={handleFileSelect} style={{ display: 'none' }} />
       </label>
@@ -442,7 +442,7 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
 
           <div style={{ marginTop: 18, display: 'flex', gap: 10 }}>
             <button className="cx-btn" onClick={confirmMapping} disabled={importing}
-              style={{ background: TEAL, color: '#fff', padding: '9px 16px', fontSize: 13.5 }}>
+              style={{ background: ACTION, color: '#fff', padding: '9px 16px', fontSize: 13.5 }}>
               {importing ? 'Importando...' : 'Confirmar e importar'}
             </button>
             <button className="cx-btn" onClick={cancelMapping} disabled={importing}
@@ -668,7 +668,7 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
           <span>📍 Av. Raphael Barbosa Brhaim, 847, Guriri Norte, São Mateus – ES | CEP: 29946-610</span>
         </div>
         <div style={{ fontSize: 11, color: MUTED }}>
-          CROSS Soluções – CNPJ: 65.404.622/0001-20 | Inscrição Estadual: 084.818.99-9
+          Cross Soluções – CNPJ: 65.404.622/0001-20 | Inscrição Estadual: 084.818.99-9
         </div>
       </div>
     </AppShell>

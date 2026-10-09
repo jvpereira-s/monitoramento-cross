@@ -3,7 +3,7 @@ import { X, FileText, Download } from 'lucide-react';
 import StatusDot from './StatusDot';
 import { computeReportRows, computeReportTotals, formatDateTimeBR } from '../lib/report';
 import { exportReportCSV, exportReportExcel, exportReportPDF } from '../lib/reportExport';
-import { MUTED, LINE, ORANGE, INK } from '../lib/theme';
+import { MUTED, LINE, INK, ACTION } from '../lib/theme';
 
 function defaultStart() {
   const d = new Date();
@@ -134,7 +134,7 @@ export default function PrinterDetailModal({ printer, readings, isAdmin, onClose
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <button type="button" className="cx-btn" onClick={handlePDF}
-              style={{ background: ORANGE, color: '#fff', padding: '7px 12px', fontSize: 12.5, display: 'flex', alignItems: 'center', gap: 6 }}>
+              style={{ background: ACTION, color: '#fff', padding: '7px 12px', fontSize: 12.5, display: 'flex', alignItems: 'center', gap: 6 }}>
               <FileText size={13} /> PDF
             </button>
             <button type="button" className="cx-btn" onClick={handleExcel}

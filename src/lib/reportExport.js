@@ -2,14 +2,16 @@ import crossLogo from '../assets/cross-logo.png';
 import { formatDateBR } from './report';
 
 const COMPANY = {
-  name: 'CROSS SOLUÇÕES',
+  name: 'Cross Soluções',
   tagline: 'Inovações contínuas na computação e na prestação de serviços',
   doc: 'CNPJ 65.404.622/0001-20 · Inscrição Estadual 084.818.99-9',
   address: 'Av. Raphael Barbosa Brhaim, 847, Guriri Norte, São Mateus – ES',
   contact: '(27) 99693-8793 · crosssolucoes@outlook.com',
 };
 
-const BRAND = { orange: 'FFE8720C', ink: 'FF1A1A1A', muted: 'FF6B6B6B', totalBg: 'FFFCE9D8' };
+// Mesma identidade do site e do sistema (src/lib/theme.js): marinho no cabeçalho da tabela e no
+// título, laranja só como acento. Texto branco sobre o laranja da marca não passa no contraste.
+const BRAND = { navy: 'FF0E2240', ink: 'FF1C2533', muted: 'FF5A6576', totalBg: 'FFEEF1F6' };
 
 const CLIENT_HEADERS = ['#', 'Impressora', 'Número de série', 'Localização', 'Contador inicial', 'Contador final', 'Total de impressões'];
 // Colunas extras só pro export de admin/interno — cliente já vê o suficiente com as
@@ -96,7 +98,7 @@ function addTitleAndMeta(ws, client, start, end, printerCount, lastCol) {
   const titleRow = ws.getRow(6);
   ws.mergeCells(6, 1, 6, lastCol);
   titleRow.getCell(1).value = 'Relatório de Impressões';
-  titleRow.getCell(1).font = { bold: true, size: 15, color: { argb: BRAND.orange } };
+  titleRow.getCell(1).font = { bold: true, size: 15, color: { argb: BRAND.navy } };
   titleRow.getCell(1).alignment = { horizontal: 'center' };
   titleRow.height = 22;
 
@@ -122,7 +124,7 @@ function addTable(ws, reportRows, reportTotals, startRowNum, isAdmin) {
     const cell = headerRow.getCell(i + 1);
     cell.value = text;
     cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: BRAND.orange } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: BRAND.navy } };
     cell.alignment = { horizontal: rightAlignCols.includes(i + 1) ? 'right' : 'left', vertical: 'middle' };
   });
   headerRow.height = 18;
@@ -146,7 +148,7 @@ function addTable(ws, reportRows, reportTotals, startRowNum, isAdmin) {
     totalRow.getCell(COLOR_TOTAL_COL).alignment = { horizontal: 'right' };
   }
   for (let col = 1; col <= headers.length; col++) {
-    totalRow.getCell(col).font = { bold: true, color: { argb: 'FFC25F09' } };
+    totalRow.getCell(col).font = { bold: true, color: { argb: BRAND.navy } };
     totalRow.getCell(col).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: BRAND.totalBg } };
   }
 }
@@ -221,31 +223,31 @@ export function exportReportPDF(reportRows, reportTotals, client, reportStart, r
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Relatório de Impressões — ${client}</title>
     <style>
       * { box-sizing: border-box; }
-      body { font-family: -apple-system, Arial, sans-serif; color: #111; margin: 32px; }
+      body { font-family: 'IBM Plex Sans', -apple-system, 'Segoe UI', Arial, sans-serif; color: #1C2533; margin: 32px; }
       .hd { display:flex; justify-content:space-between; align-items:flex-start; border-bottom:3px solid #E8720C; padding-bottom:16px; margin-bottom:20px; }
       .hd img { width:52px; height:52px; object-fit:contain; }
-      .hd .name { font-weight:700; font-size:16px; letter-spacing:.03em; }
-      .hd .sm { font-size:10px; color:#6B6B6B; margin-top:2px; }
-      h1 { text-align:center; font-size:19px; margin:0 0 4px; }
-      .period { text-align:center; font-size:12px; color:#6B6B6B; margin-bottom:20px; }
-      .meta { background:#FAFAF9; border:1px solid #E5E5E5; border-radius:6px; padding:10px 14px; font-size:12px; margin-bottom:20px; display:flex; gap:28px; flex-wrap:wrap; }
+      .hd .name { font-weight:600; font-size:17px; color:#0E2240; }
+      .hd .sm { font-size:10px; color:#5A6576; margin-top:2px; }
+      h1 { text-align:center; font-size:19px; font-weight:600; color:#0E2240; margin:0 0 4px; }
+      .period { text-align:center; font-size:12px; color:#5A6576; margin-bottom:20px; }
+      .meta { background:#F3F5F8; border:1px solid #DDE2E9; border-radius:4px; padding:10px 14px; font-size:12px; margin-bottom:20px; display:flex; gap:28px; flex-wrap:wrap; }
       table { width:100%; border-collapse:collapse; font-size:11px; }
-      th { background:#E8720C; color:#fff; text-align:left; padding:7px 9px; font-size:10px; text-transform:uppercase; letter-spacing:.04em; }
+      th { background:#0E2240; color:#fff; text-align:left; padding:7px 9px; font-size:10px; text-transform:uppercase; letter-spacing:.04em; }
       td { padding:6px 9px; border-bottom:1px solid #EEE; }
-      tr.total td { background:#FCE9D8; font-weight:700; }
-      .ft { margin-top:26px; padding-top:12px; border-top:1px solid #E5E5E5; display:flex; justify-content:space-between; font-size:9.5px; color:#6B6B6B; }
+      tr.total td { background:#EEF1F6; color:#0E2240; font-weight:700; }
+      .ft { margin-top:26px; padding-top:12px; border-top:1px solid #DDE2E9; display:flex; justify-content:space-between; font-size:9.5px; color:#5A6576; }
       @media print { body { margin:0; } }
     </style></head><body>
       <div class="hd">
         <div style="display:flex;gap:14px;align-items:center">
           <img src="${logoUrl}" alt="Cross">
           <div>
-            <div class="name">CROSS SOLUÇÕES</div>
+            <div class="name">Cross Soluções</div>
             <div class="sm">Inovações contínuas na computação e na prestação de serviços</div>
             <div class="sm">CNPJ 65.404.622/0001-20 · Inscrição Estadual 084.818.99-9</div>
           </div>
         </div>
-        <div style="text-align:right;font-size:10px;color:#6B6B6B;line-height:1.7">
+        <div style="text-align:right;font-size:10px;color:#5A6576;line-height:1.7">
           <div>Av. Raphael Barbosa Brhaim, 847</div>
           <div>Guriri Norte, São Mateus – ES</div>
           <div>(27) 99693-8793 · crosssolucoes@outlook.com</div>
@@ -266,7 +268,7 @@ export function exportReportPDF(reportRows, reportTotals, client, reportStart, r
         </tbody>
       </table>
       <div class="ft">
-        <span>CROSS Soluções · Monitoramento de impressão · Documento gerado automaticamente</span>
+        <span>Cross Soluções · Monitoramento de impressões · Documento gerado automaticamente</span>
         <span>crosssolucoes@outlook.com · (27) 99693-8793</span>
       </div>
       <script>window.onload = function(){ setTimeout(function(){ try { window.print(); } catch(e){} }, 300); };</script>
