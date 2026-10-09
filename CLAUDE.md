@@ -110,7 +110,7 @@ leitura somente do próprio contrato).
   contrato inexistente, visitante sem login e admin (contraprova — sem ela, uma RLS
   quebrada demais passaria nos outros três).
 
-**Testes**: `npm test` (vitest, 116 testes), `npm run test:coverage` (falha abaixo de 80%
+**Testes**: `npm test` (vitest, 125 testes), `npm run test:coverage` (falha abaixo de 80%
 em qualquer métrica). Cobertura medida só sobre `report.js`, `printerStats.js`,
 `importPrinters.js`, `mapping.js` e `ErrorBoundary.jsx` — `db`/`auth`/`users`/
 `printwayySync` são camada de I/O e exigiriam teste de integração, não unitário; incluí-los

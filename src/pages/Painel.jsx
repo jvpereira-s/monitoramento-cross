@@ -18,21 +18,11 @@ import {
   computeConexaoData,
 } from '../lib/printerStats';
 import { computeMonthlyTotals, computeTopConsumo, computeTopClientes, formatDateBR, formatDateTimeBR } from '../lib/report';
+import { ultimaComunicacaoText, offlineDaysText, semMonitoramentoText } from '../lib/statusLabels';
 import { ORANGE, TEAL, INK, MUTED, DANGER, LINE, ACTION, NAVY_BUTTON } from '../lib/theme';
 
-// Há quanto tempo a impressora está no estado. `offlineDays`/`zeroDays` contam desde o
-// primeiro dia da sequência, não desde a última leitura — como o sync grava uma leitura
-// por dia para toda impressora (inclusive as com problema), "dias desde a última leitura"
-// seria sempre 0 e não diria nada.
-function offlineDaysText(p) {
-  if (p.situacao_printwayy === 'fora-do-contrato') return 'Fora do contrato';
-  if (p.offlineDays === null) return 'Sem comunicar';
-  if (p.offlineDays === 0) return 'Parou hoje';
-  return p.offlineDays === 1 ? 'Parada há 1 dia' : `Parada há ${p.offlineDays} dias`;
-}
-
 // Segunda linha = último contato da impressora com o PrintWayy (lastCommunication), no
-// mesmo formato da tela do PrintWayy. Nunca o horário do nosso sync. Impressora fora do
+// mesmo formato da tela de lá. Nunca o horário do nosso sync. Impressora fora do
 // contrato não mostra: a comunicação de lá é da instalação em outro cliente.
 function offlineLabel(p) {
   const showLast = p.ultimaComunicacao && p.situacao_printwayy !== 'fora-do-contrato';
@@ -48,21 +38,7 @@ function offlineLabel(p) {
   );
 }
 
-// Coluna "Última comunicação" da tabela e do CSV: último contato da impressora com o
-// PrintWayy. Antes mostrava a data da última leitura do nosso sync, que é sempre "hoje".
-function ultimaComunicacaoText(p) {
-  if (p.situacao_printwayy === 'fora-do-contrato') return 'Fora do contrato';
-  if (p.situacao_printwayy === 'nao-encontrada') return 'Sem cadastro no PrintWayy';
-  if (!p.ultimaComunicacao) return '—';
-  return `${formatDateTimeBR(p.ultimaComunicacao)} (${p.diasSemComunicar}d)`;
-}
-
-function semMonitoramentoLabel(p) {
-  if (p.situacao_printwayy === 'nao-encontrada') return 'Sem cadastro no PrintWayy';
-  if (p.zeroDays === null) return 'Contador zerado';
-  if (p.zeroDays === 0) return 'Zerou hoje';
-  return p.zeroDays === 1 ? 'Zerada há 1 dia' : `Zerada há ${p.zeroDays} dias`;
-}
+// Rótulos que o cliente vê: src/lib/statusLabels.js (nunca citam a plataforma de terceiro).
 
 export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
   const [loading, setLoading] = useState(true);
@@ -499,7 +475,7 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
                 {kpis.offline}
               </div>
               <div style={{ fontSize: 10.5, color: '#9CA3AF', marginTop: 2 }}>
-                {kpis.offline > 0 ? 'Sem comunicação com o PrintWayy' : 'Todas comunicando'}
+                {kpis.offline > 0 ? 'Sem comunicação' : 'Todas comunicando'}
               </div>
             </div>
 
@@ -543,8 +519,8 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
           )}
 
           <PrinterIssueList
-            title="Impressoras sem comunicação com o PrintWayy"
-            subtitle={`Data e hora = último contato da impressora com o PrintWayy.${lastSync ? ` Situação conferida em ${formatDateBR(lastSync.date)} às ${lastSync.time}h.` : ''} Conexão USB depende do PC host estar ligado. Clique numa linha para ver o histórico.`}
+            title="Impressoras sem comunicação"
+            subtitle={`Data e hora = último contato da impressora com o monitoramento.${lastSync ? ` Situação conferida em ${formatDateBR(lastSync.date)} às ${lastSync.time}h.` : ''} Conexão USB depende do PC host estar ligado. Clique numa linha para ver o histórico.`}
             items={offlineList}
             total={kpis.total}
             accent={DANGER}
@@ -558,12 +534,12 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
           {semMonitoramentoList.length > 0 && (
             <PrinterIssueList
               title="Impressoras sem monitoramento de páginas"
-              subtitle="Sem cadastro no PrintWayy (contador lançado manualmente) ou contador zerado (comunica, mas o PrintWayy não recebe leitura de páginas). Clique numa linha para ver o histórico."
+              subtitle="Sem leitura automática (contador lançado manualmente) ou contador zerado (comunica, mas não envia leitura de páginas). Clique numa linha para ver o histórico."
               items={semMonitoramentoList}
               total={kpis.total}
               accent={ORANGE}
               background="#FDECD9"
-              label={semMonitoramentoLabel}
+              label={semMonitoramentoText}
               emptyMessage=""
               emptyColor={TEAL}
               onSelect={setSelectedPrinter}
@@ -645,7 +621,7 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
             </table>
           </div>
 
-          {!hasCounters && (
+          {isAdmin && !hasCounters && (
             <div style={{ marginTop: 14, fontSize: 12, color: '#9CA3AF', display: 'flex', alignItems: 'center', gap: 6 }}>
               <RefreshCw size={12} />
               Este import não traz contador de páginas — a ferramenta está mostrando comunicação e inventário. Para consumo de páginas, exporte do PrintWayy um relatório que inclua a contagem.
