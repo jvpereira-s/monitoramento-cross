@@ -15,6 +15,7 @@ import {
   type SkippedCustomer,
   type CounterEntry,
   classifyPrinter,
+  findSimilarSerials,
   fechamentoPendente,
   learnMappings,
   observeCustomers,
@@ -517,6 +518,43 @@ async function runFechamento(adminClient: AdminClient, dates: string[]) {
   };
 }
 
+// Ação `similar` (diagnóstico, somente leitura): procura seriais PARECIDOS com os
+// informados no parque inteiro visível pela API key, porque a busca da API só acha serial
+// exato. É a única leitura do parque inteiro no sistema, e é consciente: nada é gravado
+// e a resposta traz só os candidatos parecidos, nunca a lista do parque.
+// `serials`: seriais procurados; `maxDist`: tolerância em edições (padrão 2, máximo 3).
+// Big O: O(páginas do parque) chamadas (~21 de 100) + findSimilarSerials em memória.
+async function runSimilar(serials: string[], maxDist: number) {
+  const fleet: PrintwayyPrinter[] = [];
+  let total = 0;
+  for (let page = 0, skip = 0; page < MAX_PAGES; page++, skip += PAGE_SIZE) {
+    const res = await fetchPrintersPage(skip, null);
+    const data = res.data ?? [];
+    total = res.count ?? total;
+    fleet.push(...data);
+    if (!data.length || skip + PAGE_SIZE >= total) break;
+  }
+  const bySerial = new Map(fleet.map((p) => [p.serialNumber?.trim(), p]));
+  const matches = findSimilarSerials(serials, fleet.map((p) => p.serialNumber ?? ''), maxDist);
+  return {
+    parqueLido: fleet.length,
+    parqueInformadoPelaApi: total,
+    resultado: Object.fromEntries(Object.entries(matches).map(([alvo, lista]) => [alvo, lista.map((m) => {
+      const p = bySerial.get(m.serialNumber);
+      return {
+        ...m,
+        cliente: p?.customer?.name ?? null,
+        status: p?.status ?? null,
+        ultimaComunicacao: p?.lastCommunication ?? null,
+        modelo: p?.model ?? null,
+        observacao: p?.observation ?? null,
+        pc: p?.installationPoint ?? null,
+        ip: p?.ipAddress || null,
+      };
+    })])),
+  };
+}
+
 // Captura uma chamada da API sem lançar: o diagnóstico quer ver também o erro (status +
 // corpo), porque "a API recusa esse parâmetro" é informação, não falha.
 async function rawCall(path: string): Promise<{ path: string; status: number; body: unknown }> {
@@ -602,6 +640,16 @@ Deno.serve(async (req) => {
     const dates = Array.isArray(body.dates) ? body.dates.map(String).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)) : [];
     if (!serials.length) return json({ error: 'Informe ao menos um serial em `serials`.' }, 400);
     return json({ inspect: await runInspect(serials, dates), triggeredBy: callerLabel });
+  }
+  if (action === 'similar') {
+    const serials = Array.isArray(body.serials) ? body.serials.map(String).slice(0, INSPECT_MAX_SERIALS) : [];
+    if (!serials.length) return json({ error: 'Informe ao menos um serial em `serials`.' }, 400);
+    const maxDist = Math.min(3, Math.max(0, Number(body.maxDist ?? 2) || 0));
+    try {
+      return json({ ...(await runSimilar(serials, maxDist)), triggeredBy: callerLabel });
+    } catch (e) {
+      return json({ error: `Falha na busca: ${e instanceof Error ? e.message : String(e)}` }, 502);
+    }
   }
   if (action !== 'sync' && action !== 'fechamento') return json({ error: 'Ação desconhecida.' }, 400);
 

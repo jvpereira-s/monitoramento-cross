@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   classifyPrinter, fechamentoPendente, learnMappings, toFechamentoRow, toPrinterRow, toSituacaoRow,
+  findSimilarSerials, levenshtein, normalizeSerial,
   type CustomerConfig, type PrintwayyPrinter, type ResolvedPrinter,
 } from './discovery.ts';
 
@@ -126,5 +127,29 @@ describe('linhas gravadas', () => {
     expect(row).toEqual({
       printer_id: 'A', data: '2026-09-02', contador_pb: 4775, contador_color: null, imported_at: now.toISOString(),
     });
+  });
+});
+
+describe('busca de serial parecido', () => {
+  it('normaliza caracteres que se confundem na etiqueta', () => {
+    expect(normalizeSerial(' brbsrb902n ')).toBe(normalizeSerial('8R85R8902N'));
+    expect(normalizeSerial('BRBSSD60GZ')).toBe('8R8550606' + '2');
+  });
+
+  it('distância de edição', () => {
+    expect(levenshtein('BRBSRB902N', 'BRBSRB902N')).toBe(0);
+    expect(levenshtein('BRBSRB902N', 'BRBSRB903N')).toBe(1);
+    expect(levenshtein('BRBSRB902N', 'BRBSRB92N')).toBe(1);
+  });
+
+  it('acha serial com dígito trocado e com letra confundida, e ignora o resto', () => {
+    const r = findSimilarSerials(['BRBSRB902N'], ['BRBSRB903N', 'BRBSR8902N', 'BRBST1603D', 'BRBSRB902N ']);
+    expect(r.BRBSRB902N.map((m) => m.serialNumber)).toEqual(['BRBSRB902N', 'BRBSR8902N', 'BRBSRB903N']);
+    expect(r.BRBSRB902N[1]).toMatchObject({ distancia: 1, distanciaConfusaveis: 0 });
+  });
+
+  it('respeita a tolerância', () => {
+    expect(findSimilarSerials(['BRBSSD60GZ'], ['BRBSSD60HN'], 1).BRBSSD60GZ).toEqual([]);
+    expect(findSimilarSerials(['BRBSSD60GZ'], ['BRBSSD60HN'], 2).BRBSSD60GZ).toHaveLength(1);
   });
 });

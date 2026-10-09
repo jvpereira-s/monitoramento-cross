@@ -187,9 +187,9 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
       [`Inventário de impressoras — gerado em ${new Date().toLocaleDateString('pt-BR')}`],
       [],
     ];
-    const headers = ['Local', 'Departamento', 'Modelo', 'Conexao', 'IP', ...(isAdmin ? ['Cliente'] : []), 'Status', 'UltimaComunicacao', 'DiasSemComunicar', ...(hasCounters ? ['Contador'] : [])];
+    const headers = ['Local', 'Serial', 'Departamento', 'Modelo', 'Conexao', 'IP', ...(isAdmin ? ['Cliente'] : []), 'Status', 'UltimaComunicacao', 'DiasSemComunicar', ...(hasCounters ? ['Contador'] : [])];
     const rows = sorted.map((p) => [
-      p.local || p.id, p.departamento || '', p.modelo || '', p.conexao || '', p.ip || '',
+      p.local || p.id, p.id, p.departamento || '', p.modelo || '', p.conexao || '', p.ip || '',
       ...(isAdmin ? [p.cliente || ''] : []),
       p.comm, p.ultimaComunicacao ? formatDateTimeBR(p.ultimaComunicacao) : '', p.diasSemComunicar ?? '',
       ...(hasCounters ? [p.contador ?? ''] : []),
@@ -598,6 +598,11 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
                   <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('local')}>
                     Local {sortBy === 'local' && (sortDir === 'asc' ? '▲' : '▼')}
                   </th>
+                  {/* Serial sempre visível: o controle do contrato (relatório oficial,
+                      equipe técnica, PrintWayy) é feito pelo número de série. */}
+                  <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('serial')}>
+                    Serial {sortBy === 'serial' && (sortDir === 'asc' ? '▲' : '▼')}
+                  </th>
                   <th>Modelo</th><th>Conexão</th><th>IP</th>
                   {isAdmin && <th>Cliente</th>}
                   <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('dias')}>
@@ -620,6 +625,7 @@ export default function Painel({ profile, isAdmin, onNavigate, onLogout }) {
                         </div>
                       )}
                     </td>
+                    <td className="mono" style={{ whiteSpace: 'nowrap' }}>{p.id}</td>
                     <td>{p.modelo || '—'}</td>
                     <td>{p.conexao || '—'}</td>
                     <td className="mono">{p.ip || '—'}</td>

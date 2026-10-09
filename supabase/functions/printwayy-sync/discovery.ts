@@ -380,3 +380,62 @@ export function selectNewPrinters(
 ): PrintwayyPrinter[] {
   return dedupeBySerial(doContrato).filter((p) => !registeredIds.has(p.serialNumber.trim()));
 }
+
+// Caracteres que se confundem ao ler a etiqueta do equipamento (ou uma imagem dela).
+// Cada grupo vira um único caractere canônico antes da comparação.
+const CONFUSAVEIS: Record<string, string> = {
+  O: '0', D: '0', Q: '0', B: '8', G: '6', S: '5', Z: '2', I: '1', L: '1',
+};
+
+export function normalizeSerial(s: string): string {
+  return s.trim().toUpperCase().split('').map((c) => CONFUSAVEIS[c] ?? c).join('');
+}
+
+// Distância de edição (inserção, remoção, troca de 1 caractere).
+// Big O: O(|a| × |b|) tempo, O(|b|) memória. Seriais têm ~10 caracteres.
+export function levenshtein(a: string, b: string): number {
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j++) {
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    }
+    prev = cur;
+  }
+  return prev[b.length];
+}
+
+export interface SimilarMatch {
+  serialNumber: string;
+  distancia: number; // edições entre os seriais como estão escritos
+  distanciaConfusaveis: number; // edições depois de igualar 0/O/D, 8/B, 6/G, 5/S, 2/Z, 1/I/L
+}
+
+// Para cada serial procurado, os seriais do parque a até `maxDist` edições (direto ou
+// depois de igualar caracteres confusáveis), do mais parecido para o menos.
+// Existe porque a busca da API só acha serial EXATO: um dígito lido errado na etiqueta
+// vira "não encontrado", mesmo com o equipamento cadastrado.
+// Big O: O(procurados × parque × |serial|²). Hoje são ~2 × 2.100 × 100, irrelevante.
+export function findSimilarSerials(
+  targets: string[], // seriais procurados
+  fleet: string[], // seriais do parque visível pela API
+  maxDist = 2, // tolerância em edições
+  limit = 10, // máximo de candidatos por serial procurado
+): Record<string, SimilarMatch[]> {
+  const out: Record<string, SimilarMatch[]> = {};
+  for (const t of targets) {
+    const tRaw = t.trim().toUpperCase();
+    const tNorm = normalizeSerial(t);
+    out[t] = [...new Set(fleet.map((s) => s.trim()).filter(Boolean))]
+      .map((s) => ({
+        serialNumber: s,
+        distancia: levenshtein(tRaw, s.toUpperCase()),
+        distanciaConfusaveis: levenshtein(tNorm, normalizeSerial(s)),
+      }))
+      .filter((m) => Math.min(m.distancia, m.distanciaConfusaveis) <= maxDist)
+      .sort((a, b) => Math.min(a.distancia, a.distanciaConfusaveis) - Math.min(b.distancia, b.distanciaConfusaveis)
+        || a.distancia - b.distancia)
+      .slice(0, limit);
+  }
+  return out;
+}
