@@ -1,8 +1,25 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 
+const REQUIRED_ENV = ['VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY']
+
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ command, mode }) => {
+  // Build sem as variáveis do Supabase gera um site que abre em BRANCO: o cliente do
+  // Supabase quebra na inicialização. Isso foi para produção uma vez (09/10/2026),
+  // num build feito numa máquina sem `.env`. Aqui o build falha antes, com mensagem
+  // clara. Só no build: dev e testes não precisam do Supabase real.
+  if (command === 'build') {
+    const env = loadEnv(mode, process.cwd(), 'VITE_')
+    const missing = REQUIRED_ENV.filter((k) => !env[k])
+    if (missing.length) {
+      throw new Error(`Build abortado: faltam ${missing.join(', ')} no .env (ver .env.example).`)
+    }
+  }
+  return config
+})
+
+const config = {
   plugins: [react()],
   // Caminhos relativos nos assets gerados — o app funciona tanto publicado na raiz do
   // domínio quanto numa subpasta (ex: dominio.com/monitoramento/), sem precisar saber
@@ -29,4 +46,4 @@ export default defineConfig({
       thresholds: { statements: 80, branches: 80, functions: 80, lines: 80 },
     },
   },
-})
+}

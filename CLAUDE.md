@@ -250,7 +250,16 @@ da planilha contra isso — pendência 3 abaixo, ainda não conferido contra o s
      ação que o banco vai negar.
    - **Senha da conta de teste (`cliente123`) é fraca e foi exposta em conversa** — trocar
      ou apagar a conta antes de entregar o acesso ao cliente.
-8. **Deploy HostGator + HTTPS** — preparado, falta executar no cPanel (28/07/2026).
+8. ~~Deploy HostGator + HTTPS~~ — no ar em `https://www.crosssolucoes.com.br/monitoramento/`
+   (pasta `public_html/monitoramento`; a raiz do domínio é o site institucional).
+   Deploy de 09/10/2026 feito por FTP com TLS, com conta temporária restrita à pasta,
+   excluída depois. O certificado do FTP é `*.hostgator.com.br`, então a conexão usa
+   esse nome resolvido para o IP do servidor (sem desligar a verificação). Ordem: backup,
+   depois `assets/`, conferência de tamanhos e por último `index.html`.
+   **Incidente**: o primeiro build daquele dia foi feito numa máquina sem `.env` e o site
+   abriu em branco (o cliente do Supabase quebra sem URL/chave). Agora o `vite.config.js`
+   aborta o build quando falta `VITE_SUPABASE_URL` ou `VITE_SUPABASE_ANON_KEY`. Antes de
+   publicar, validar a renderização com `msedge --headless=new --dump-dom <url>`.
    - ~~Redirect HTTPS~~ — pronto em `public/.htaccess`, com dupla condição (`%{HTTPS}` e
      `X-Forwarded-Proto`) porque o HostGator serve atrás de proxy; só com a primeira,
      conexão já segura entra em loop de redirect.
