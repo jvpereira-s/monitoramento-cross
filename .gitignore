@@ -42,3 +42,6 @@ supabase/.temp/
 *.njsproj
 *.sln
 *.sw?
+
+# Backup local da versão publicada antes de cada deploy no HostGator (rollback)
+backup-site-*/
