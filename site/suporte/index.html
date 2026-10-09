@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<!-- Esta página é servida em dois endereços: em crosssolucoes.com.br/suporte/ e na raiz de
+     suporte.crosssolucoes.com.br, que é a entrada única do suporte (o arquivo fica na pasta da
+     instalação do GLPI). O <base> fixa a resolução dos caminhos relativos na pasta real, valendo
+     para os dois. Precisa vir antes do primeiro href/src relativo. Os caminhos de /assets/ são
+     absolutos de propósito: o subdomínio enxerga o mesmo public_html, então /assets/ existe nos
+     dois endereços. -->
+<base href="/suporte/" />
+<title>Acesso da equipe técnica — Cross Soluções</title>
+<meta name="description" content="Cross Soluções — acesso da equipe técnica à central de chamados." />
+<meta name="robots" content="noindex, nofollow" />
+<meta name="theme-color" content="#0E2240" />
+<link rel="icon" type="image/png" sizes="32x32" href="/assets/img/favicon-32.png" />
+<link rel="apple-touch-icon" href="/assets/img/apple-touch-icon.png" />
+<link rel="preload" href="/assets/fontes/plex-sans-latin.woff2" as="font" type="font/woff2" crossorigin />
+<link rel="stylesheet" href="/assets/fontes/plex.css?v=20261009" />
+<link rel="stylesheet" href="/assets/css/site.css?v=20261009" />
+<style>
+  /* O script abaixo mostra o erro adicionando a classe "mostrar" (contrato herdado da versão
+     anterior desta tela, mantido para não mexer no script de login). */
+  #erro { display: none; align-items: flex-start; gap: 8px; margin-top: 18px; }
+  #erro.mostrar { display: flex; }
+  #erro svg { flex-shrink: 0; margin-top: 4px; }
+</style>
+</head>
+<body>
+
+<div class="entrada-equipe">
+
+  <main class="entrada-equipe-form">
+    <a class="marca" href="https://www.crosssolucoes.com.br/" aria-label="Cross Soluções — site">
+      <img src="/assets/img/cross-emblema-96.png" alt="" width="44" height="44" />
+      <span class="marca-nome"><strong>Cross Soluções</strong><span>Central de chamados</span></span>
+    </a>
+
+    <div class="entrada-equipe-caixa">
+      <h1>Entrar no suporte</h1>
+      <p class="entrada-equipe-sub">Acesso da equipe técnica à central de chamados (GLPI).</p>
+
+      <!-- Sem novalidate: os 'required' só valem por causa disso. Com ele, Enter na tela vazia
+           mandava usuário e senha em branco para o GLPI e voltava "usuário ou senha
+           inválidos" — erro do sistema para o que era campo não preenchido.
+           Os id e name abaixo são lidos pelo script de login; não renomear. -->
+      <form id="form-login" style="margin-top:28px">
+        <div class="campo">
+          <label for="usuario">Usuário</label>
+          <input class="entrada" type="text" id="usuario" name="login_name" placeholder="seu.usuario"
+                 autocomplete="username" autocapitalize="none" spellcheck="false" autofocus required />
+        </div>
+        <div class="campo">
+          <label for="senha">Senha</label>
+          <input class="entrada" id="senha" name="login_password" type="password"
+                 autocomplete="current-password" required />
+        </div>
+
+        <div class="aviso aviso--erro" id="erro" role="alert">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" />
+            <path d="M12 9v4" /><path d="M12 17h.01" />
+          </svg>
+          <span id="erro-texto"></span>
+        </div>
+
+        <button type="submit" class="botao botao--primario" id="botao-entrar">Entrar</button>
+      </form>
+
+      <p class="entrada-equipe-alt">
+        Não é da equipe técnica? <a href="/chamados/">Abrir chamado com a Cross</a>
+      </p>
+    </div>
+  </main>
+
+  <aside class="entrada-equipe-lado" aria-label="Sobre a central de chamados">
+    <div>
+      <h2>Central de chamados Cross Soluções</h2>
+      <p>Onde os chamados abertos pelo site chegam, com número, histórico e acompanhamento até a solução.</p>
+      <ul>
+        <li>Chamados de impressoras, computadores, notebooks e tablets.</li>
+        <li>Para monitoramento de impressões, use o <a href="/monitoramento/" style="color:#fff">painel de monitoramento</a>.</li>
+      </ul>
+    </div>
+    <p class="entrada-equipe-rodape">© 2026 Cross Soluções · <a href="https://www.crosssolucoes.com.br/">crosssolucoes.com.br</a></p>
+  </aside>
+
+</div>
+
+<script>
+  // Caminho do GLPI a partir do navegador. PRECISA ser da mesma origem desta página (mesmo
+  // domínio e porta): origem diferente não funciona, porque o cookie de sessão que o GLPI
+  // devolve seria de terceiros e o token CSRF não valeria aqui.
+  //
+  // DERIVADO DA URL ATUAL, e não fixo em '/'. Esta tela é servida na própria raiz da
+  // instalação do GLPI — o servidor a entrega quando alguém pede o endereço do suporte —,
+  // então o diretório da URL de agora É a base do GLPI. Isso a faz funcionar nos dois
+  // endereços em que ela vive, sem precisar saber em qual está:
+  //
+  //     crosssolucoes.com.br/suporte/   ->  GLPI_BASE = '/suporte/'
+  //     suporte.crosssolucoes.com.br/   ->  GLPI_BASE = '/'
+  //
+  // Com o valor fixo em '/', o login quebrava no primeiro endereço: a tela buscava o token
+  // em crosssolucoes.com.br/_glpi-login, que é a raiz do site institucional e não existe.
+  // O sintoma era "Não foi possível falar com o sistema de chamados", que sugere GLPI fora
+  // do ar e não um caminho errado.
+  //
+  // Sobre subcaminho funcionar: o GLPI 11 calcula o próprio root_doc com
+  // Request::getBasePath(), então ele monta /suporte/lib/... sozinho. O que não funciona é
+  // um PROXY que remove o prefixo — aí ele não tem como saber que existe um.
+  var GLPI_BASE = window.location.pathname.replace(/[^\/]*$/, '');
+
+  // Atalho que o servidor mapeia para a tela de login do GLPI, de onde sai o token CSRF.
+  // Não dá para buscar a raiz: a raiz é esta própria página (entrada única do suporte), e
+  // devolveria este HTML de volta, sem token. Também não dá para buscar '/index.php': ele
+  // agora redireciona para a raiz, para o logout do GLPI cair nesta tela e não na dele.
+  // GET em /front/login.php não serve: responde 302 para /index.php?error=1.
+  var GLPI_LOGIN = GLPI_BASE + '_glpi-login';
+
+  var form = document.getElementById('form-login');
+  var botao = document.getElementById('botao-entrar');
+  var erro = document.getElementById('erro');
+  var erroTexto = document.getElementById('erro-texto');
+
+  function mostrarErro(html) {
+    erroTexto.innerHTML = html;
+    erro.classList.add('mostrar');
+  }
+
+  function limparErro() {
+    erro.classList.remove('mostrar');
+    erroTexto.textContent = '';
+  }
+
+  // O GLPI recusa um POST de login sem o _glpi_csrf_token que ele mesmo emitiu, então o
+  // caminho é: pegar a tela de login dele, ler o token de dentro do HTML e reenviar junto
+  // com as credenciais. Como é mesma origem, o cookie de sessão vai e volta sozinho e o
+  // navegador termina o login já dentro do GLPI.
+  function lerToken(html) {
+    var doc = new DOMParser().parseFromString(html, 'text/html');
+    var campo = doc.querySelector('input[name="_glpi_csrf_token"]');
+    return campo ? campo.value : null;
+  }
+
+  // O login vai por fetch, e não por um form que o navegador submete de verdade. A diferença
+  // aparece quando a senha está errada: o GLPI responde 400 já renderizando a tela de login
+  // DELE, e num submit de verdade o navegador troca a página — o usuário digita errado uma
+  // vez e cai numa tela de login diferente, sem entender o que houve. Com fetch a resposta é
+  // lida aqui e o erro aparece nesta mesma tela.
+  //
+  // O cookie de sessão é gravado igual, porque é mesma origem; por isso, dando certo, basta
+  // navegar. E navega para resposta.url (o endereço onde o GLPI parou depois dos redirects),
+  // não para um caminho fixo: a ferramenta escolhe destinos diferentes conforme o perfil.
+  function enviarLogin(token) {
+    var dados = new URLSearchParams();
+    dados.set('login_name', document.getElementById('usuario').value);
+    dados.set('login_password', document.getElementById('senha').value);
+    dados.set('_glpi_csrf_token', token);
+
+    return fetch(GLPI_BASE + 'front/login.php', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: dados
+    }).then(function (resposta) {
+      if (resposta.ok) {
+        window.location.href = resposta.url || (GLPI_BASE + 'front/central.php');
+        return;
+      }
+      // 400 e 401 são o que o GLPI devolve para credencial recusada.
+      if (resposta.status === 400 || resposta.status === 401) {
+        var erroCredencial = new Error('credencial recusada');
+        erroCredencial.credencial = true;
+        throw erroCredencial;
+      }
+      throw new Error('Resposta ' + resposta.status);
+    });
+  }
+
+  form.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    if (botao.disabled) return;
+
+    limparErro();
+    botao.disabled = true;
+    botao.textContent = 'Entrando...';
+
+    fetch(GLPI_LOGIN, { credentials: 'same-origin', headers: { 'Accept': 'text/html' } })
+      .then(function (resposta) {
+        if (!resposta.ok) throw new Error('Resposta ' + resposta.status);
+        return resposta.text();
+      })
+      .then(function (html) {
+        var token = lerToken(html);
+        if (!token) throw new Error('Token CSRF não encontrado na tela do GLPI.');
+        return enviarLogin(token);
+      })
+      .catch(function (falha) {
+        if (falha && falha.credencial) {
+          mostrarErro('Usuário ou senha inválidos. Confira os dados e tente de novo.');
+        } else {
+          console.error('Falha ao falar com o GLPI:', falha);
+          mostrarErro('Não foi possível falar com o sistema de chamados. ' +
+            '<a href="' + GLPI_LOGIN + '">Abrir o GLPI direto</a>.');
+        }
+        botao.disabled = false;
+        botao.textContent = 'Entrar';
+      });
+  });
+</script>
+
+</body>
+</html>

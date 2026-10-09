@@ -1,0 +1,6 @@
+User-agent: *
+Disallow: /suporte/
+Disallow: /monitoramento/
+Disallow: /chamados/enviar.php
+
+Sitemap: https://www.crosssolucoes.com.br/sitemap.xml

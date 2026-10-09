@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Abrir chamado de suporte técnico — Cross Soluções</title>
+<meta name="description" content="Abra um chamado de suporte técnico com a Cross Soluções: impressoras, computadores, notebooks e tablets. O número do chamado aparece na hora e a confirmação chega por e-mail." />
+<link rel="canonical" href="https://www.crosssolucoes.com.br/chamados/" />
+<meta name="theme-color" content="#0E2240" />
+
+<meta property="og:type" content="website" />
+<meta property="og:locale" content="pt_BR" />
+<meta property="og:site_name" content="Cross Soluções" />
+<meta property="og:title" content="Abrir chamado de suporte técnico — Cross Soluções" />
+<meta property="og:description" content="Impressoras, computadores, notebooks e tablets. O número do chamado aparece na hora." />
+<meta property="og:url" content="https://www.crosssolucoes.com.br/chamados/" />
+<meta property="og:image" content="https://www.crosssolucoes.com.br/assets/img/compartilhar.jpg" />
+<meta name="twitter:card" content="summary_large_image" />
+
+<link rel="icon" type="image/png" sizes="32x32" href="/assets/img/favicon-32.png" />
+<link rel="icon" type="image/png" sizes="48x48" href="/assets/img/favicon-48.png" />
+<link rel="apple-touch-icon" href="/assets/img/apple-touch-icon.png" />
+<link rel="preload" href="/assets/fontes/plex-sans-latin.woff2" as="font" type="font/woff2" crossorigin />
+<link rel="stylesheet" href="/assets/fontes/plex.css?v=20261009" />
+<link rel="stylesheet" href="/assets/css/site.css?v=20261009" />
+<script>document.documentElement.className += ' js';</script>
+<script src="/assets/js/menu.js?v=20261009" defer></script>
+<script src="/chamados/chamado.js?v=20261009" defer></script>
+</head>
+<body>
+
+<a class="pular" href="#conteudo">Pular para o formulário</a>
+
+<nav class="utilidades" aria-label="Contato e acesso da equipe">
+  <div class="recipiente">
+    <ul role="list">
+      <li><span class="utilidades-rotulo">Telefone</span> <a href="tel:+5527996938793">(27) 99693-8793</a></li>
+      <li><span class="utilidades-rotulo">E-mail</span> <a href="mailto:crosssolucoes@outlook.com">crosssolucoes@outlook.com</a></li>
+    </ul>
+    <a href="/suporte/">Acesso da equipe técnica</a>
+  </div>
+</nav>
+
+<header class="topo">
+  <div class="recipiente">
+    <a class="marca" href="/" aria-label="Cross Soluções — página inicial">
+      <img src="/assets/img/cross-emblema-96.png" alt="" width="44" height="44" />
+      <span class="marca-nome"><strong>Cross Soluções</strong><span>Informática e impressão</span></span>
+    </a>
+
+    <nav class="navegacao" id="menu" aria-label="Principal">
+      <ul role="list">
+        <li><a href="/#servicos">Serviços</a></li>
+        <li><a href="/#impressao">Monitoramento de impressões</a></li>
+        <li><a href="/#atendimento">Atendimento</a></li>
+        <li><a href="/#contato">Contato</a></li>
+        <li class="navegacao-extra"><a href="/chamados/">Abrir chamado</a></li>
+        <li class="navegacao-extra"><a href="/monitoramento/">Entrar no monitoramento</a></li>
+        <li class="navegacao-extra"><a href="/suporte/">Acesso da equipe técnica</a></li>
+        <li class="navegacao-extra navegacao-contato">(27) 99693-8793 · crosssolucoes@outlook.com</li>
+      </ul>
+    </nav>
+
+    <div class="topo-acoes">
+      <a class="botao botao--secundario botao--compacto" href="/monitoramento/">Monitoramento</a>
+      <a class="botao botao--primario botao--compacto" href="/chamados/" aria-current="page">Abrir chamado</a>
+      <button class="menu-botao" type="button" aria-expanded="false" aria-controls="menu">
+        <span class="menu-botao-icone" aria-hidden="true"><span></span></span>
+        Menu
+      </button>
+    </div>
+  </div>
+</header>
+
+<main id="conteudo">
+  <div class="recipiente">
+    <nav class="trilha" aria-label="Você está em">
+      <ol>
+        <li><a href="/">Início</a></li>
+        <li aria-current="page">Abrir chamado</li>
+      </ol>
+    </nav>
+
+    <div class="pagina-cabeca">
+      <h1>Abrir chamado de suporte técnico</h1>
+      <p>
+        Preencha os dados abaixo. O chamado é registrado na nossa central e o número aparece
+        nesta tela assim que você enviar.
+      </p>
+    </div>
+
+    <div class="chamado">
+      <div>
+        <!-- Sem novalidate: a validação do navegador é o primeiro filtro (marca o campo, rola
+             até ele e escreve a mensagem em português). A do enviar.php continua sendo a que
+             vale, porque um POST direto não passa pelo navegador.
+             Os name="" e o endereço do envio (./enviar.php) são o contrato com o servidor —
+             não renomear sem mudar o enviar.php junto. Os maxlength repetem os limites dele. -->
+        <form class="formulario" id="form-chamado" action="./enviar.php" method="post">
+          <p class="dica" style="margin-bottom:28px">Todos os campos são obrigatórios.</p>
+
+          <fieldset>
+            <legend>Quem está solicitando</legend>
+            <div class="campos">
+              <div class="campo campo--largo">
+                <label for="nome">Nome</label>
+                <input class="entrada" type="text" id="nome" name="nome" required maxlength="120" autocomplete="name" />
+              </div>
+              <div class="campo">
+                <label for="email">E-mail</label>
+                <input class="entrada" type="email" id="email" name="email" required maxlength="180" autocomplete="email" inputmode="email" aria-describedby="email-dica" />
+                <p class="dica" id="email-dica">A confirmação do chamado vai para este endereço.</p>
+              </div>
+              <div class="campo">
+                <label for="telefone">Telefone</label>
+                <input class="entrada" type="tel" id="telefone" name="telefone" required maxlength="40" autocomplete="tel" inputmode="tel" aria-describedby="telefone-dica" />
+                <p class="dica" id="telefone-dica">Com DDD. É por ele que a equipe técnica entra em contato.</p>
+              </div>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Onde é o atendimento</legend>
+            <div class="campos">
+              <div class="campo">
+                <label for="municipio">Município</label>
+                <input class="entrada" type="text" id="municipio" name="municipio" required maxlength="120" autocomplete="address-level2" />
+              </div>
+              <div class="campo">
+                <label for="orgao">Órgão ou secretaria</label>
+                <input class="entrada" type="text" id="orgao" name="orgao" required maxlength="180" autocomplete="organization" aria-describedby="orgao-dica" />
+                <p class="dica" id="orgao-dica">Exemplo: Secretaria Municipal de Educação.</p>
+              </div>
+              <div class="campo campo--largo">
+                <label for="setor">Setor</label>
+                <input class="entrada" type="text" id="setor" name="setor" required maxlength="120" aria-describedby="setor-dica" />
+                <p class="dica" id="setor-dica">Onde o equipamento fica. Exemplo: recepção, farmácia, almoxarifado.</p>
+              </div>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>O que está acontecendo</legend>
+            <div class="campo">
+              <label for="solicitacao">Descreva a solicitação</label>
+              <p class="dica" id="solicitacao-dica">Diga qual é o equipamento (impressora, computador, notebook ou tablet), o que acontece e, se aparecer, a mensagem de erro.</p>
+              <textarea class="entrada" id="solicitacao" name="solicitacao" required maxlength="5000" aria-describedby="solicitacao-dica solicitacao-contador"></textarea>
+              <p class="contador" id="solicitacao-contador">Até 5.000 caracteres.</p>
+            </div>
+          </fieldset>
+
+          <!-- Armadilha para robô: fora da vista (.armadilha), fora da tabulação e do
+               autocomplete. Pessoa nenhuma chega até ele; robô que preenche tudo preenche este
+               e o enviar.php descarta o envio. Não usa type="hidden": robô pula esse. -->
+          <div class="armadilha" aria-hidden="true">
+            <label for="empresa">Não preencha este campo</label>
+            <input type="text" id="empresa" name="empresa" tabindex="-1" autocomplete="off" />
+          </div>
+
+          <div class="formulario-envio">
+            <button type="submit" class="botao botao--primario" id="botao-enviar">Enviar chamado</button>
+          </div>
+
+          <div class="aviso" id="mensagem" role="status" aria-live="polite" hidden></div>
+        </form>
+      </div>
+
+      <aside class="chamado-lado" aria-label="Sobre o atendimento">
+        <figure class="foto">
+          <img src="/assets/img/digitalizacao-880.webp"
+               srcset="/assets/img/digitalizacao-560.webp 560w, /assets/img/digitalizacao-880.webp 880w"
+               sizes="380px" width="880" height="1100" loading="lazy" decoding="async"
+               alt="Pessoa usando o painel de toque de uma multifuncional" />
+          <figcaption>Imagem ilustrativa.</figcaption>
+        </figure>
+
+        <section aria-labelledby="depois-titulo">
+          <h2 id="depois-titulo">Depois do envio</h2>
+          <ol class="lista-passos" role="list">
+            <li><span><strong>O número do chamado</strong> aparece nesta tela.</span></li>
+            <li><span><strong>A confirmação</strong> chega no e-mail informado.</span></li>
+            <li><span><strong>A equipe técnica</strong> analisa e entra em contato pelo telefone.</span></li>
+          </ol>
+        </section>
+
+        <div class="caixa-contato">
+          <p>Se o envio não funcionar, fale direto com a Cross:</p>
+          <p><a href="tel:+5527996938793">(27) 99693-8793</a><br /><a href="mailto:crosssolucoes@outlook.com">crosssolucoes@outlook.com</a></p>
+        </div>
+      </aside>
+    </div>
+  </div>
+</main>
+
+<footer class="rodape">
+  <div class="recipiente">
+    <div class="rodape-grade">
+      <div>
+        <div class="rodape-marca">
+          <img src="/assets/img/cross-emblema-96.png" alt="" width="44" height="44" loading="lazy" />
+          <strong>Cross Soluções</strong>
+        </div>
+        <p class="rodape-lema">Inovações contínuas na computação e na prestação de serviços.</p>
+      </div>
+      <nav aria-labelledby="rodape-servicos">
+        <h2 id="rodape-servicos">Sistemas</h2>
+        <ul role="list">
+          <li><a href="/chamados/">Abrir chamado</a></li>
+          <li><a href="/monitoramento/">Monitoramento de impressões</a></li>
+          <li><a href="/suporte/">Central de chamados (GLPI)</a></li>
+        </ul>
+      </nav>
+      <nav aria-labelledby="rodape-empresa">
+        <h2 id="rodape-empresa">Cross Soluções</h2>
+        <ul role="list">
+          <li><a href="/#servicos">Serviços</a></li>
+          <li><a href="/#impressao">Monitoramento de impressões</a></li>
+          <li><a href="/#atendimento">Atendimento</a></li>
+          <li><a href="/#contato">Contato</a></li>
+        </ul>
+      </nav>
+      <div>
+        <h2>Contato</h2>
+        <ul role="list">
+          <li><a href="tel:+5527996938793">(27) 99693-8793</a></li>
+          <li><a href="mailto:crosssolucoes@outlook.com">crosssolucoes@outlook.com</a></li>
+          <li><address>Av. Raphael Barbosa Brhaim, 847<br />Guriri Norte, São Mateus – ES</address></li>
+        </ul>
+      </div>
+    </div>
+    <div class="rodape-base">
+      <span>© 2026 Cross Soluções · CNPJ 65.404.622/0001-20 · Inscrição Estadual 084.818.99-9</span>
+      <span>São Mateus – ES</span>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
